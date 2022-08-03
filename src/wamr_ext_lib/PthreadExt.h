@@ -20,30 +20,30 @@ private:
 
     static void GetTimeoutTimespec(struct timespec& ts, uint64_t useconds);
     std::shared_ptr<pthread_mutex_t> GetMutex(uint32_t* pHandleID, uint8_t autoCreatedMutexType);
-    static uint32_t PthreadMutexInit(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint32_t* attr);
-    static uint32_t PthreadMutexLock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
-    static uint32_t PthreadMutexUnlock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
-    static uint32_t PthreadMutexTryLock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
-    static uint32_t PthreadMutexTimedLock(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint64_t useconds);
-    static uint32_t PthreadMutexDestroy(wasm_exec_env_t pExecEnv, uint32_t *mutex);
+    static int32_t PthreadMutexInit(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint32_t* attr);
+    static int32_t PthreadMutexLock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
+    static int32_t PthreadMutexUnlock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
+    static int32_t PthreadMutexTryLock(wasm_exec_env_t pExecEnv, uint32_t *mutex);
+    static int32_t PthreadMutexTimedLock(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint64_t useconds);
+    static int32_t PthreadMutexDestroy(wasm_exec_env_t pExecEnv, uint32_t *mutex);
 
     std::shared_ptr<pthread_cond_t> GetCond(uint32_t* pHandleID, bool bAutoCreated);
-    static uint32_t PthreadCondInit(wasm_exec_env_t pExecEnv, uint32_t *cond, void* attr);
-    static uint32_t PthreadCondDestroy(wasm_exec_env_t pExecEnv, uint32_t *cond);
-    static uint32_t PthreadCondWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t* mutex);
-    static uint32_t PthreadCondTimedWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t* mutex, uint64_t useconds);
-    static uint32_t PthreadCondBroadcast(wasm_exec_env_t pExecEnv, uint32_t *cond);
-    static uint32_t PthreadCondSignal(wasm_exec_env_t pExecEnv, uint32_t *cond);
+    static int32_t PthreadCondInit(wasm_exec_env_t pExecEnv, uint32_t *cond, void* attr);
+    static int32_t PthreadCondDestroy(wasm_exec_env_t pExecEnv, uint32_t *cond);
+    static int32_t PthreadCondWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t* mutex);
+    static int32_t PthreadCondTimedWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t* mutex, uint64_t useconds);
+    static int32_t PthreadCondBroadcast(wasm_exec_env_t pExecEnv, uint32_t *cond);
+    static int32_t PthreadCondSignal(wasm_exec_env_t pExecEnv, uint32_t *cond);
 
     std::shared_ptr<pthread_rwlock_t> GetRWLock(uint32_t* pHandleID, bool bAutoCreated);
-    static uint32_t PthreadRWLockInit(wasm_exec_env_t pExecEnv, uint32_t *rwlock, void* attr);
-    static uint32_t PthreadRWLockDestroy(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
-    static uint32_t PthreadRWLockRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
-    static uint32_t PthreadRWLockTryRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
-    static uint32_t PthreadRWLockTimedRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds);
-    static uint32_t PthreadRWLockWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
-    static uint32_t PthreadRWLockTryWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
-    static uint32_t PthreadRWLockTimedWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds);
-    static uint32_t PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockInit(wasm_exec_env_t pExecEnv, uint32_t *rwlock, void* attr);
+    static int32_t PthreadRWLockDestroy(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockTryRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockTimedRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds);
+    static int32_t PthreadRWLockWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockTryWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadRWLockTimedWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds);
+    static int32_t PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
 };
 }
