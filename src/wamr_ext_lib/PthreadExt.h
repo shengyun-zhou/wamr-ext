@@ -45,5 +45,7 @@ private:
     static int32_t PthreadRWLockTryWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
     static int32_t PthreadRWLockTimedWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds);
     static int32_t PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
+    static int32_t PthreadSetName(wasm_exec_env_t pExecEnv, char* name);
+    static int32_t PthreadGetName(wasm_exec_env_t pExecEnv, char* nameBuf, uint32_t bufLen);
 };
 }

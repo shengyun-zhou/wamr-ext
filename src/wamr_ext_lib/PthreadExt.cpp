@@ -1,4 +1,7 @@
 #include "PthreadExt.h"
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 namespace WAMR_EXT_NS {
 
@@ -27,6 +30,8 @@ void PthreadExt::Init() {
         {"pthread_rwlock_trywrlock", (void*)PthreadRWLockTryWrLock, "(*)i", &g_instance},
         {"pthread_rwlock_timedwrlock", (void*)PthreadRWLockTimedWrLock, "(*I)i", &g_instance},
         {"pthread_rwlock_unlock", (void*)PthreadRWLockUnlock, "(*)i", &g_instance},
+        {"pthread_setname_np", (void*)PthreadSetName, "(*)i", &g_instance},
+        {"pthread_getname_np", (void*)PthreadGetName, "(*i)i", &g_instance},
     };
     wasm_runtime_register_natives("pthread_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
 }
@@ -337,6 +342,35 @@ int32_t PthreadExt::PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlo
     if (!pRWLock)
         return __WASI_EINVAL;
     return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_unlock(pRWLock.get()));
+}
+
+int32_t PthreadExt::PthreadSetName(wasm_exec_env_t pExecEnv, char *name) {
+#if defined(__WINPTHREADS_VERSION)
+    pthread_setname_np(pthread_self(), name);
+#elif defined(__APPLE__)
+    pthread_setname_np(name);
+#elif defined(__CYGWIN__) || defined(__FreeBSD__)
+    pthread_setname_np(pthread_self(), name);
+#elif defined(__linux__)
+    prctl(PR_SET_NAME, name);
+#endif
+    return 0;
+}
+
+int32_t PthreadExt::PthreadGetName(wasm_exec_env_t pExecEnv, char *nameBuf, uint32_t bufLen) {
+    char tempThreadName[64] = {0};
+#ifdef __linux__
+    if (prctl(PR_GET_NAME, tempThreadName) == -1)
+        return Utility::ConvertErrnoToWasiErrno(errno);
+#elif defined(__WINPTHREADS_VERSION) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__FreeBSD__)
+    int err = pthread_getname_np(pthread_self(), tempThreadName, sizeof(tempThreadName));
+    if (err != 0)
+        return Utility::ConvertErrnoToWasiErrno(err);
+#else
+    return __WASI_ENOSYS;
+#endif
+    snprintf(nameBuf, bufLen, "%s", tempThreadName);
+    return 0;
 }
 
 }
