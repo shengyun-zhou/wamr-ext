@@ -3,9 +3,9 @@
 #include "../base/Utility.h"
 
 namespace WAMR_EXT_NS {
-    class PthreadExt {
+    class WasiPthreadExt {
     public:
-        PthreadExt();
+        WasiPthreadExt();
         static void Init();
     private:
         std::mutex m_pthreadMutexMapLock;
@@ -16,7 +16,7 @@ namespace WAMR_EXT_NS {
         std::unordered_map<uint32_t, std::shared_ptr<pthread_rwlock_t>> m_pthreadRWLockMap;
         std::atomic<uint32_t> m_curHandleId{1};
 
-        static PthreadExt g_instance;
+        static WasiPthreadExt g_instance;
 
         static void GetTimeoutTimespec(struct timespec& ts, uint64_t useconds);
         std::shared_ptr<pthread_mutex_t> GetMutex(uint32_t* pHandleID, uint8_t autoCreatedMutexType);

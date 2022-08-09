@@ -236,13 +236,15 @@ add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
 
 set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_ROOT_DIR}/core/iwasm/libraries
+        ${WAMR_ROOT_DIR}/core/iwasm
         third_party
         )
 
 add_library(wamr_ext_obj OBJECT
         src/base/Utility.cpp
         src/base/WamrExtInternalDef.cpp
-        src/wamr_ext_lib/PthreadExt.cpp)
+        src/wamr_ext_lib/WasiPthreadExt.cpp
+        src/wamr_ext_lib/WasiWamrExt.cpp)
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
 add_library(wamr_ext_static STATIC
@@ -254,6 +256,6 @@ target_compile_definitions(wamr_ext_static PRIVATE -DWAMR_EXT_STATIC_LIB)
 target_link_libraries(wamr_ext_static PRIVATE wamr)
 
 add_executable(wamr_ext_miniapp
-        src/wamr_ext_app/miniapp.cpp)
+        src/wamr_ext_app/MiniApp.cpp)
 target_include_directories(wamr_ext_miniapp PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
 target_link_libraries(wamr_ext_miniapp PRIVATE wamr_ext_static)

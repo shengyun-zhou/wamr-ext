@@ -1,12 +1,12 @@
-#include "PthreadExt.h"
+#include "WasiPthreadExt.h"
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
 namespace WAMR_EXT_NS {
-    PthreadExt PthreadExt::g_instance;
+    WasiPthreadExt WasiPthreadExt::g_instance;
 
-    void PthreadExt::Init() {
+    void WasiPthreadExt::Init() {
         static NativeSymbol nativeSymbols[] = {
             {"pthread_mutex_init", (void*)PthreadMutexInit, "(**)i", &g_instance},
             {"pthread_mutex_lock", (void*)PthreadMutexLock, "(*)i", &g_instance},
@@ -37,13 +37,13 @@ namespace WAMR_EXT_NS {
         wasm_runtime_register_natives("pthread_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
     }
 
-    PthreadExt::PthreadExt() {
+    WasiPthreadExt::WasiPthreadExt() {
         m_pthreadMutexMap.reserve(200);
         m_pthreadCondMap.reserve(100);
         m_pthreadRWLockMap.reserve(50);
     }
 
-    void PthreadExt::GetTimeoutTimespec(struct timespec &ts, uint64_t useconds) {
+    void WasiPthreadExt::GetTimeoutTimespec(struct timespec &ts, uint64_t useconds) {
 #ifdef _WIN32
         timeval tv;
         gettimeofday(&tv, nullptr);
@@ -64,7 +64,7 @@ namespace WAMR_EXT_NS {
 #define PTHREAD_EXT_COND_UNINIT_ID 0
 #define PTHREAD_EXT_RWLOCK_UNINIT_ID 0
 
-    std::shared_ptr<pthread_mutex_t> PthreadExt::GetMutex(uint32_t *pHandleID, uint8_t autoCreatedMutexType) {
+    std::shared_ptr<pthread_mutex_t> WasiPthreadExt::GetMutex(uint32_t *pHandleID, uint8_t autoCreatedMutexType) {
         std::shared_ptr<pthread_mutex_t> pRetMutex;
         std::lock_guard<std::mutex> _al(m_pthreadMutexMapLock);
         if (*pHandleID == PTHREAD_EXT_MUTEX_UNINIT_ID) {
@@ -96,8 +96,8 @@ namespace WAMR_EXT_NS {
         return pRetMutex;
     }
 
-    int32_t PthreadExt::PthreadMutexInit(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint32_t *attr) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadMutexInit(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint32_t *attr) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         bool bRecursive = false;
         if (attr)
             bRecursive = (*(attr) & 1);
@@ -106,32 +106,32 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    int32_t PthreadExt::PthreadMutexLock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadMutexLock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_lock(pMutex.get()));
     }
 
-    int32_t PthreadExt::PthreadMutexUnlock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadMutexUnlock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 0);
         if (!pMutex)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_unlock(pMutex.get()));
     }
 
-    int32_t PthreadExt::PthreadMutexTryLock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadMutexTryLock(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_trylock(pMutex.get()));
     }
 
-    int32_t PthreadExt::PthreadMutexTimedLock(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint64_t useconds) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadMutexTimedLock(wasm_exec_env_t pExecEnv, uint32_t *mutex, uint64_t useconds) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
             return __WASI_EINVAL;
@@ -140,10 +140,10 @@ namespace WAMR_EXT_NS {
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_timedlock(pMutex.get(), &ts));
     }
 
-    int32_t PthreadExt::PthreadMutexDestroy(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
+    int32_t WasiPthreadExt::PthreadMutexDestroy(wasm_exec_env_t pExecEnv, uint32_t *mutex) {
         if (*mutex == PTHREAD_EXT_MUTEX_UNINIT_ID)
             return 0;
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         std::lock_guard<std::mutex> _al(pThis->m_pthreadMutexMapLock);
         auto it = pThis->m_pthreadMutexMap.find(*mutex);
         if (it == pThis->m_pthreadMutexMap.end()) {
@@ -155,7 +155,7 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    std::shared_ptr<pthread_cond_t> PthreadExt::GetCond(uint32_t *pHandleID, bool bAutoCreated) {
+    std::shared_ptr<pthread_cond_t> WasiPthreadExt::GetCond(uint32_t *pHandleID, bool bAutoCreated) {
         std::shared_ptr<pthread_cond_t> pRetCond;
         std::lock_guard<std::mutex> _al(m_pthreadCondLock);
         if (*pHandleID == PTHREAD_EXT_COND_UNINIT_ID) {
@@ -180,17 +180,17 @@ namespace WAMR_EXT_NS {
         return pRetCond;
     }
 
-    int32_t PthreadExt::PthreadCondInit(wasm_exec_env_t pExecEnv, uint32_t *cond, void *) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadCondInit(wasm_exec_env_t pExecEnv, uint32_t *cond, void *) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         *cond = PTHREAD_EXT_COND_UNINIT_ID;
         pThis->GetCond(cond, true);
         return 0;
     }
 
-    int32_t PthreadExt::PthreadCondDestroy(wasm_exec_env_t pExecEnv, uint32_t *cond) {
+    int32_t WasiPthreadExt::PthreadCondDestroy(wasm_exec_env_t pExecEnv, uint32_t *cond) {
         if (*cond == PTHREAD_EXT_COND_UNINIT_ID)
             return 0;
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         std::lock_guard<std::mutex> _al(pThis->m_pthreadCondLock);
         auto it = pThis->m_pthreadCondMap.find(*cond);
         if (it == pThis->m_pthreadCondMap.end()) {
@@ -202,8 +202,8 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    int32_t PthreadExt::PthreadCondWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t *mutex) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadCondWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t *mutex) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pCond || !pMutex)
@@ -211,8 +211,8 @@ namespace WAMR_EXT_NS {
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_wait(pCond.get(), pMutex.get()));
     }
 
-    int32_t PthreadExt::PthreadCondTimedWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t *mutex, uint64_t useconds) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadCondTimedWait(wasm_exec_env_t pExecEnv, uint32_t *cond, uint32_t *mutex, uint64_t useconds) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pCond || !pMutex)
@@ -222,23 +222,23 @@ namespace WAMR_EXT_NS {
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_timedwait(pCond.get(), pMutex.get(), &ts));
     }
 
-    int32_t PthreadExt::PthreadCondSignal(wasm_exec_env_t pExecEnv, uint32_t *cond) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadCondSignal(wasm_exec_env_t pExecEnv, uint32_t *cond) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         if (!pCond)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_signal(pCond.get()));
     }
 
-    int32_t PthreadExt::PthreadCondBroadcast(wasm_exec_env_t pExecEnv, uint32_t *cond) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadCondBroadcast(wasm_exec_env_t pExecEnv, uint32_t *cond) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         if (!pCond)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_broadcast(pCond.get()));
     }
 
-    std::shared_ptr<pthread_rwlock_t> PthreadExt::GetRWLock(uint32_t *pHandleID, bool bAutoCreated) {
+    std::shared_ptr<pthread_rwlock_t> WasiPthreadExt::GetRWLock(uint32_t *pHandleID, bool bAutoCreated) {
         std::shared_ptr<pthread_rwlock_t> pRetRWLock;
         std::lock_guard<std::mutex> _al(m_pthreadRWLockMapLock);
         if (*pHandleID == PTHREAD_EXT_RWLOCK_UNINIT_ID) {
@@ -263,17 +263,17 @@ namespace WAMR_EXT_NS {
         return pRetRWLock;
     }
 
-    int32_t PthreadExt::PthreadRWLockInit(wasm_exec_env_t pExecEnv, uint32_t *rwlock, void *) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockInit(wasm_exec_env_t pExecEnv, uint32_t *rwlock, void *) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         *rwlock = PTHREAD_EXT_RWLOCK_UNINIT_ID;
         pThis->GetRWLock(rwlock, true);
         return 0;
     }
 
-    int32_t PthreadExt::PthreadRWLockDestroy(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+    int32_t WasiPthreadExt::PthreadRWLockDestroy(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
         if (*rwlock == PTHREAD_EXT_RWLOCK_UNINIT_ID)
             return 0;
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         std::lock_guard<std::mutex> _al(pThis->m_pthreadRWLockMapLock);
         auto it = pThis->m_pthreadRWLockMap.find(*rwlock);
         if (it == pThis->m_pthreadRWLockMap.end()) {
@@ -285,24 +285,24 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    int32_t PthreadExt::PthreadRWLockRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_rdlock(pRWLock.get()));
     }
 
-    int32_t PthreadExt::PthreadRWLockTryRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockTryRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_tryrdlock(pRWLock.get()));
     }
 
-    int32_t PthreadExt::PthreadRWLockTimedRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockTimedRdLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
@@ -311,24 +311,24 @@ namespace WAMR_EXT_NS {
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_timedrdlock(pRWLock.get(), &ts));
     }
 
-    int32_t PthreadExt::PthreadRWLockWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_wrlock(pRWLock.get()));
     }
 
-    int32_t PthreadExt::PthreadRWLockTryWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockTryWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_trywrlock(pRWLock.get()));
     }
 
-    int32_t PthreadExt::PthreadRWLockTimedWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockTimedWrLock(wasm_exec_env_t pExecEnv, uint32_t *rwlock, uint64_t useconds) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
             return __WASI_EINVAL;
@@ -337,15 +337,15 @@ namespace WAMR_EXT_NS {
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_timedwrlock(pRWLock.get(), &ts));
     }
 
-    int32_t PthreadExt::PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
-        auto *pThis = (PthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
+    int32_t WasiPthreadExt::PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock) {
+        auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, false);
         if (!pRWLock)
             return __WASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_unlock(pRWLock.get()));
     }
 
-    int32_t PthreadExt::PthreadSetName(wasm_exec_env_t pExecEnv, char *name) {
+    int32_t WasiPthreadExt::PthreadSetName(wasm_exec_env_t pExecEnv, char *name) {
 #if defined(__WINPTHREADS_VERSION)
         pthread_setname_np(pthread_self(), name);
 #elif defined(__APPLE__)
@@ -358,7 +358,7 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    int32_t PthreadExt::PthreadGetName(wasm_exec_env_t pExecEnv, char *nameBuf, uint32_t bufLen) {
+    int32_t WasiPthreadExt::PthreadGetName(wasm_exec_env_t pExecEnv, char *nameBuf, uint32_t bufLen) {
         char tempThreadName[64] = {0};
 #ifdef __linux__
         if (prctl(PR_GET_NAME, tempThreadName) == -1)
