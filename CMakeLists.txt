@@ -252,3 +252,8 @@ add_library(wamr_ext_static STATIC
 target_include_directories(wamr_ext_static PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
 target_compile_definitions(wamr_ext_static PRIVATE -DWAMR_EXT_STATIC_LIB)
 target_link_libraries(wamr_ext_static PRIVATE wamr)
+
+add_executable(wamr_ext_miniapp
+        src/wamr_ext_app/miniapp.cpp)
+target_include_directories(wamr_ext_miniapp PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
+target_link_libraries(wamr_ext_miniapp PRIVATE wamr_ext_static)
