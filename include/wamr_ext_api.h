@@ -27,16 +27,16 @@ enum WamrExtInstanceOpt {
     WAMR_INST_OPT_MAX_THREAD_NUM = 1,
 };
 
-WAMR_EXT_API int wamr_ext_init();
-WAMR_EXT_API int wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* file_path);
-WAMR_EXT_API int wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, const uint8_t* buf, uint32_t len);
-WAMR_EXT_API int wamr_ext_module_set_inst_default_opt(wamr_ext_module_t* module, enum WamrExtInstanceOpt opt, const void* value);
-WAMR_EXT_API int wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t* inst);
-WAMR_EXT_API int wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value);
-WAMR_EXT_API int wamr_ext_instance_init(wamr_ext_instance_t* inst);
-WAMR_EXT_API int wamr_ext_instance_run_main(wamr_ext_instance_t* inst, int32_t argc, char** argv);
+WAMR_EXT_API int32_t wamr_ext_init();
+WAMR_EXT_API int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* file_path);
+WAMR_EXT_API int32_t wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, const uint8_t* buf, uint32_t len);
+WAMR_EXT_API int32_t wamr_ext_module_set_inst_default_opt(wamr_ext_module_t* module, enum WamrExtInstanceOpt opt, const void* value);
+WAMR_EXT_API int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t* inst);
+WAMR_EXT_API int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value);
+WAMR_EXT_API int32_t wamr_ext_instance_init(wamr_ext_instance_t* inst);
+WAMR_EXT_API int32_t wamr_ext_instance_run_main(wamr_ext_instance_t* inst, int32_t argc, char** argv);
 
-WAMR_EXT_API const char* wamr_ext_strerror(int err);
+WAMR_EXT_API const char* wamr_ext_strerror(int32_t err);
 
 #ifdef __cplusplus
 }
