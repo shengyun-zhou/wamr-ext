@@ -235,10 +235,13 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
 
 set(WAMR_EXT_INCLUDE_DIRS
-        ${WAMR_ROOT_DIR}/core/iwasm/libraries)
+        ${WAMR_ROOT_DIR}/core/iwasm/libraries
+        third_party
+        )
 
 add_library(wamr_ext_obj OBJECT
         src/base/Utility.cpp
+        src/base/WamrExtInternalDef.cpp
         src/wamr_ext_lib/PthreadExt.cpp)
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
@@ -248,3 +251,4 @@ add_library(wamr_ext_static STATIC
         )
 target_include_directories(wamr_ext_static PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
 target_compile_definitions(wamr_ext_static PRIVATE -DWAMR_EXT_STATIC_LIB)
+target_link_libraries(wamr_ext_static PRIVATE wamr)
