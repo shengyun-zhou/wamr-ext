@@ -18,17 +18,34 @@ namespace WAMR_EXT_NS {
         auto pWasmModule = wasm_runtime_get_module_inst(pExecEnv);
         if (!wasm_runtime_validate_native_addr(pWasmModule, buf, *bufLen))
             return __WASI_EFAULT;
-        if (strcmp(name, "sysinfo.cpu_count") == 0) {
-            if (*bufLen < sizeof(uint32_t))
+        if (strcmp(name, "sysinfo.tid") == 0) {
+            uint32_t tempTid = 0;
+            if (*bufLen < sizeof(tempTid))
                 return __WASI_ERANGE;
-            uint32_t cpuCount = std::thread::hardware_concurrency();
-            *bufLen = sizeof(uint32_t);
+            tempTid = Utility::GetCurrentThreadID();
+            *bufLen = sizeof(tempTid);
+            memcpy(buf, &tempTid, *bufLen);
+            return 0;
+        } else if (strcmp(name, "sysinfo.pid") == 0) {
+            uint32_t tempPid = 0;
+            if (*bufLen < sizeof(tempPid))
+                return __WASI_ERANGE;
+            tempPid = Utility::GetProcessID();
+            *bufLen = sizeof(tempPid);
+            memcpy(buf, &tempPid, *bufLen);
+            return 0;
+        } else if (strcmp(name, "sysinfo.cpu_count") == 0) {
+            uint32_t cpuCount = 1;
+            if (*bufLen < sizeof(cpuCount))
+                return __WASI_ERANGE;
+            cpuCount = std::thread::hardware_concurrency();
+            *bufLen = sizeof(cpuCount);
             memcpy(buf, &cpuCount, *bufLen);
             return 0;
         } else if (strcmp(name, "sysinfo.vm_mem_total") == 0) {
-            if (*bufLen < sizeof(uint64_t))
-                return __WASI_ERANGE;
             uint64_t totalMemSize = 0;
+            if (*bufLen < sizeof(totalMemSize))
+                return __WASI_ERANGE;
             if (pWasmModule->module_type == Wasm_Module_Bytecode) {
                 WASMMemoryInstance* memInst = ((WASMModuleInstance*)pWasmModule)->default_memory;
                 totalMemSize = uint64_t(memInst->num_bytes_per_page) * memInst->max_page_count;
@@ -36,7 +53,7 @@ namespace WAMR_EXT_NS {
                 AOTMemoryInstance* memInst = ((AOTModuleInstance*)pWasmModule)->global_table_data.memory_instances;
                 totalMemSize = uint64_t(memInst->num_bytes_per_page) * memInst->max_page_count;
             }
-            *bufLen = sizeof(uint64_t);
+            *bufLen = sizeof(totalMemSize);
             memcpy(buf, &totalMemSize, *bufLen);
             return 0;
         }
