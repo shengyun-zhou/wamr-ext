@@ -3,7 +3,7 @@
 
 struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
-    std::map<std::string, std::string> preMountDirs;
+    std::map<std::string, std::string> preOpenDirs;     // mapped dir -> host dir
     std::map<std::string, std::string> envVars;
 
     WamrExtInstanceConfig();
@@ -21,8 +21,8 @@ struct WamrExtModule {
 
 struct WamrExtInstance {
     struct InstRuntimeData {
-        std::vector<const char*> preMountHostDirs;
-        std::vector<const char*> preMountMapDirs;
+        std::vector<const char*> preOpenHostDirs;
+        std::vector<const char*> preOpenMapDirs;
         std::list<std::string> envVarsStringList;
         std::vector<const char*> envVars;
 

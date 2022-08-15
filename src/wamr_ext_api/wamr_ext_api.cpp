@@ -2,7 +2,6 @@
 #include "../base/WamrExtInternalDef.h"
 #include "../wamr_ext_lib/WasiPthreadExt.h"
 #include "../wamr_ext_lib/WasiWamrExt.h"
-#include "../base/FSUtility.h"
 
 namespace WAMR_EXT_NS {
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
@@ -14,6 +13,17 @@ namespace WAMR_EXT_NS {
                     ret = EINVAL;
                 else
                     config.maxThreadNum = maxThreadNum;
+                break;
+            }
+            case WAMR_INST_OPT_ADD_HOST_DIR: {
+                WamrKeyValueSS* kv = (WamrKeyValueSS*)value;
+                // v: mapped dir, k: host dir
+                config.preOpenDirs[kv->v] = kv->k;
+                break;
+            }
+            case WAMR_INST_OPT_ADD_ENV_VAR: {
+                WamrKeyValueSS* kv = (WamrKeyValueSS*)value;
+                config.envVars[kv->k] = kv->v;
                 break;
             }
             default:
@@ -102,8 +112,8 @@ int32_t wamr_ext_instance_init(wamr_ext_instance_t* inst) {
     auto pInst = *inst;
     pInst->pRuntimeData.reset(new WamrExtInstance::InstRuntimeData(pInst->instConfig));
     std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
-    wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preMountHostDirs.data(), pInst->pRuntimeData->preMountHostDirs.size(),
-                                  pInst->pRuntimeData->preMountMapDirs.data(), pInst->pRuntimeData->preMountMapDirs.size(),
+    wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preOpenHostDirs.data(), pInst->pRuntimeData->preOpenHostDirs.size(),
+                                  pInst->pRuntimeData->preOpenMapDirs.data(), pInst->pRuntimeData->preOpenMapDirs.size(),
                                   pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(), nullptr, 0,
                                   fileno(stdin), fileno(stdout), fileno(stderr));
     wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
