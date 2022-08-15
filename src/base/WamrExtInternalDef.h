@@ -3,6 +3,10 @@
 
 struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
+    std::map<std::string, std::string> preMountDirs;
+    std::map<std::string, std::string> envVars;
+
+    WamrExtInstanceConfig();
 };
 
 struct WamrExtModule {
@@ -11,14 +15,31 @@ struct WamrExtModule {
     WamrExtInstanceConfig instDefaultConf;
 
     explicit WamrExtModule(const std::shared_ptr<uint8_t>& pBuf) : pModuleBuf(pBuf) {}
+    WamrExtModule(const WamrExtModule&) = delete;
+    WamrExtModule& operator=(const WamrExtModule&) = delete;
 };
 
 struct WamrExtInstance {
+    struct InstRuntimeData {
+        std::vector<const char*> preMountHostDirs;
+        std::vector<const char*> preMountMapDirs;
+        std::list<std::string> envVarsStringList;
+        std::vector<const char*> envVars;
+
+        InstRuntimeData(const WamrExtInstanceConfig& config);
+        InstRuntimeData(const InstRuntimeData&) = delete;
+        InstRuntimeData& operator=(const InstRuntimeData&) = delete;
+    };
+
     WamrExtModule* pModule;
     WamrExtInstanceConfig instConfig;
     wasm_module_inst_t instance{nullptr};
+    std::shared_ptr<InstRuntimeData> pRuntimeData;
+
     explicit WamrExtInstance(WamrExtModule* _pModule) : pModule(_pModule),
         instConfig(_pModule->instDefaultConf) {}
+    WamrExtInstance(const WamrExtInstance&) = delete;
+    WamrExtInstance& operator=(const WamrExtInstance&) = delete;
 };
 
 namespace WAMR_EXT_NS {

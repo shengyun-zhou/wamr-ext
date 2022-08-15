@@ -2,6 +2,7 @@
 #include "../base/WamrExtInternalDef.h"
 #include "../wamr_ext_lib/WasiPthreadExt.h"
 #include "../wamr_ext_lib/WasiWamrExt.h"
+#include "../base/FSUtility.h"
 
 namespace WAMR_EXT_NS {
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
@@ -28,9 +29,6 @@ namespace WAMR_EXT_NS {
             return -1;
         *module = new WamrExtModule(pModuleBuf);
         (*module)->module = wasmModule;
-        wasm_runtime_set_wasi_args_ex(wasmModule, nullptr, 0, nullptr, 0,
-                                      nullptr, 0, nullptr, 0,
-                                      fileno(stdin), fileno(stdout), fileno(stderr));
         return 0;
     }
 
@@ -102,10 +100,15 @@ int32_t wamr_ext_instance_init(wamr_ext_instance_t* inst) {
     if (!inst || !(*inst))
         return EINVAL;
     auto pInst = *inst;
+    pInst->pRuntimeData.reset(new WamrExtInstance::InstRuntimeData(pInst->instConfig));
     std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
+    wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preMountHostDirs.data(), pInst->pRuntimeData->preMountHostDirs.size(),
+                                  pInst->pRuntimeData->preMountMapDirs.data(), pInst->pRuntimeData->preMountMapDirs.size(),
+                                  pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(), nullptr, 0,
+                                  fileno(stdin), fileno(stdout), fileno(stderr));
     wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
     // No app heap size for each module
-    pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 512 * 1024, 0,
+    pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
                                                WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
     if (!pInst->instance)
         return -1;

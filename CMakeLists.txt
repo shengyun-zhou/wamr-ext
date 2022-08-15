@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 project(wamr_ext)
+if (CMAKE_COMPILER_IS_GNUCC)
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.1)
+        message(FATAL_ERROR "GCC version must be 8.1 or above")
+    endif()
+endif()
 set(CMAKE_CXX_STANDARD 17)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -242,6 +247,7 @@ set(WAMR_EXT_INCLUDE_DIRS
 
 add_library(wamr_ext_obj OBJECT
         src/base/Utility.cpp
+        src/base/FSUtility.cpp
         src/base/WamrExtInternalDef.cpp
         src/wamr_ext_lib/WasiPthreadExt.cpp
         src/wamr_ext_lib/WasiWamrExt.cpp)

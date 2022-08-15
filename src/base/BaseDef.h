@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <filesystem>
 
 #include <libc-wasi/libc_wasi_wrapper.h>
 #include <wasm_export.h>
