@@ -23,6 +23,7 @@
 
 #include <wasi_types.h>
 #include <wasm_export.h>
+#include <wasm_runtime_common.h>
 
 #define WAMR_EXT_NS wamr_ext
 

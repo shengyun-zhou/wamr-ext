@@ -2,6 +2,7 @@
 #include "../base/WamrExtInternalDef.h"
 #include "../wamr_ext_lib/WasiPthreadExt.h"
 #include "../wamr_ext_lib/WasiWamrExt.h"
+#include "../wamr_ext_lib/WasiFSExt.h"
 
 namespace WAMR_EXT_NS {
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
@@ -50,6 +51,7 @@ int32_t wamr_ext_init() {
         return -1;
     WAMR_EXT_NS::WasiPthreadExt::Init();
     WAMR_EXT_NS::WasiWamrExt::Init();
+    WAMR_EXT_NS::WasiFSExt::Init();
     return 0;
 }
 

@@ -243,6 +243,7 @@ target_link_libraries(wamr uvwasi_a uv_a)
 set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_ROOT_DIR}/core/iwasm/libraries
         ${WAMR_ROOT_DIR}/core/iwasm
+        ${uvwasi_SOURCE_DIR}/src
         third_party
         )
 
@@ -251,7 +252,9 @@ add_library(wamr_ext_obj OBJECT
         src/base/FSUtility.cpp
         src/base/WamrExtInternalDef.cpp
         src/wamr_ext_lib/WasiPthreadExt.cpp
-        src/wamr_ext_lib/WasiWamrExt.cpp)
+        src/wamr_ext_lib/WasiWamrExt.cpp
+        src/wamr_ext_lib/WasiFSExt.cpp
+        )
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
 add_library(wamr_ext_static STATIC

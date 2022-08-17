@@ -44,4 +44,11 @@ struct WamrExtInstance {
 
 namespace WAMR_EXT_NS {
     extern thread_local char gLastErrorStr[200];
+    namespace wasi {
+        struct wamr_wasi_struct_base {
+            uint16_t struct_size;
+        };
+
+#define wamr_wasi_struct_assert(T) static_assert(std::is_base_of<WAMR_EXT_NS::wasi::wamr_wasi_struct_base, T>::value && std::is_trivial<T>::value)
+    }
 };
