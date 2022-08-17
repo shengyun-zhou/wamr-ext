@@ -21,7 +21,7 @@
 #include <functional>
 #include <filesystem>
 
-#include <libc-wasi/libc_wasi_wrapper.h>
+#include <wasi_types.h>
 #include <wasm_export.h>
 
 #define WAMR_EXT_NS wamr_ext

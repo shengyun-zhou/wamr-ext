@@ -233,11 +233,12 @@ endif()
 set(WAMR_BUILD_INTERP 1)
 set(WAMR_BUILD_FAST_INTERP 1)
 set(WAMR_BUILD_LIBC_BUILTIN 1)
-set(WAMR_BUILD_LIBC_WASI 1)
+set(WAMR_BUILD_LIBC_UVWASI 1)
 set(WAMR_BUILD_LIB_PTHREAD 1)
 set(WAMR_BUILD_DUMP_CALL_STACK 1)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
+target_link_libraries(wamr uvwasi_a uv_a)
 
 set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_ROOT_DIR}/core/iwasm/libraries

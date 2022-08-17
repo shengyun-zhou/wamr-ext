@@ -31,12 +31,12 @@ namespace WAMR_EXT_NS {
 #endif
     }
 
-    wasi_errno_t Utility::ConvertErrnoToWasiErrno(int error) {
+    uvwasi_errno_t Utility::ConvertErrnoToWasiErrno(int error) {
         if (error == 0)
             return 0;
         // Ref: wasm-micro-runtime/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/src/posix.c
-        static const std::unordered_map<int, wasi_errno_t> errors {
-#define X(v) {v, __WASI_##v}
+        static const std::unordered_map<int, uvwasi_errno_t> errors {
+#define X(v) {v, UVWASI_##v}
                 X(E2BIG),
                 X(EACCES),
                 X(EADDRINUSE),
@@ -124,10 +124,10 @@ namespace WAMR_EXT_NS {
 #endif
         };
         if (error < 0)
-            return __WASI_ENOSYS;
+            return UVWASI_ENOSYS;
         const auto it = errors.find(error);
         if (it != errors.end())
             return it->second;
-        return __WASI_ENOSYS;
+        return UVWASI_ENOSYS;
     }
 }

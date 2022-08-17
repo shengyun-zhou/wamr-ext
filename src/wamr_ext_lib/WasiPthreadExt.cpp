@@ -110,7 +110,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_lock(pMutex.get()));
     }
 
@@ -118,7 +118,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 0);
         if (!pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_unlock(pMutex.get()));
     }
 
@@ -126,7 +126,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_trylock(pMutex.get()));
     }
 
@@ -134,7 +134,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         struct timespec ts;
         GetTimeoutTimespec(ts, useconds);
         return Utility::ConvertErrnoToWasiErrno(pthread_mutex_timedlock(pMutex.get(), &ts));
@@ -148,7 +148,7 @@ namespace WAMR_EXT_NS {
         auto it = pThis->m_pthreadMutexMap.find(*mutex);
         if (it == pThis->m_pthreadMutexMap.end()) {
             assert(false);
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         }
         pthread_mutex_destroy(it->second.get());
         pThis->m_pthreadMutexMap.erase(it);
@@ -195,7 +195,7 @@ namespace WAMR_EXT_NS {
         auto it = pThis->m_pthreadCondMap.find(*cond);
         if (it == pThis->m_pthreadCondMap.end()) {
             assert(false);
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         }
         pthread_cond_destroy(it->second.get());
         pThis->m_pthreadCondMap.erase(it);
@@ -207,7 +207,7 @@ namespace WAMR_EXT_NS {
         auto pCond = pThis->GetCond(cond, true);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pCond || !pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_wait(pCond.get(), pMutex.get()));
     }
 
@@ -216,7 +216,7 @@ namespace WAMR_EXT_NS {
         auto pCond = pThis->GetCond(cond, true);
         auto pMutex = pThis->GetMutex(mutex, 1);
         if (!pCond || !pMutex)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         struct timespec ts;
         GetTimeoutTimespec(ts, useconds);
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_timedwait(pCond.get(), pMutex.get(), &ts));
@@ -226,7 +226,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         if (!pCond)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_signal(pCond.get()));
     }
 
@@ -234,7 +234,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pCond = pThis->GetCond(cond, true);
         if (!pCond)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_cond_broadcast(pCond.get()));
     }
 
@@ -278,7 +278,7 @@ namespace WAMR_EXT_NS {
         auto it = pThis->m_pthreadRWLockMap.find(*rwlock);
         if (it == pThis->m_pthreadRWLockMap.end()) {
             assert(false);
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         }
         pthread_rwlock_destroy(it->second.get());
         pThis->m_pthreadRWLockMap.erase(it);
@@ -289,7 +289,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_rdlock(pRWLock.get()));
     }
 
@@ -297,7 +297,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_tryrdlock(pRWLock.get()));
     }
 
@@ -305,7 +305,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         struct timespec ts;
         GetTimeoutTimespec(ts, useconds);
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_timedrdlock(pRWLock.get(), &ts));
@@ -315,7 +315,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_wrlock(pRWLock.get()));
     }
 
@@ -323,7 +323,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_trywrlock(pRWLock.get()));
     }
 
@@ -331,7 +331,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, true);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         struct timespec ts;
         GetTimeoutTimespec(ts, useconds);
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_timedwrlock(pRWLock.get(), &ts));
@@ -341,7 +341,7 @@ namespace WAMR_EXT_NS {
         auto *pThis = (WasiPthreadExt *) wasm_runtime_get_function_attachment(pExecEnv);
         auto pRWLock = pThis->GetRWLock(rwlock, false);
         if (!pRWLock)
-            return __WASI_EINVAL;
+            return UVWASI_EINVAL;
         return Utility::ConvertErrnoToWasiErrno(pthread_rwlock_unlock(pRWLock.get()));
     }
 
@@ -368,7 +368,7 @@ namespace WAMR_EXT_NS {
         if (err != 0)
             return Utility::ConvertErrnoToWasiErrno(err);
 #else
-        return __WASI_ENOSYS;
+        return UVWASI_ENOSYS;
 #endif
         snprintf(nameBuf, bufLen, "%s", tempThreadName);
         return 0;
