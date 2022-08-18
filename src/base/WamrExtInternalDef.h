@@ -46,6 +46,7 @@ namespace WAMR_EXT_NS {
     extern thread_local char gLastErrorStr[200];
     namespace wasi {
         struct wamr_wasi_struct_base {
+            uint16_t struct_ver;
             uint16_t struct_size;
         };
 
