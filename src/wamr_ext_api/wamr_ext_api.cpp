@@ -3,6 +3,7 @@
 #include "../wamr_ext_lib/WasiPthreadExt.h"
 #include "../wamr_ext_lib/WasiWamrExt.h"
 #include "../wamr_ext_lib/WasiFSExt.h"
+#include "../wamr_ext_lib/WasiSocketExt.h"
 
 namespace WAMR_EXT_NS {
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
@@ -44,7 +45,7 @@ namespace WAMR_EXT_NS {
     }
 
     std::mutex gInstInitializationLock;
-};
+}
 
 int32_t wamr_ext_init() {
     if (!wasm_runtime_init())
@@ -52,6 +53,7 @@ int32_t wamr_ext_init() {
     WAMR_EXT_NS::WasiPthreadExt::Init();
     WAMR_EXT_NS::WasiWamrExt::Init();
     WAMR_EXT_NS::WasiFSExt::Init();
+    WAMR_EXT_NS::WasiSocketExt::Init();
     return 0;
 }
 

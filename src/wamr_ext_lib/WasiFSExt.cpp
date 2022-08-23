@@ -54,10 +54,10 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t WasiFSExt::FDStatVFS(wasm_exec_env_t pExecEnv, int32_t fd, wasi::wamr_wasi_struct_base* _pAppRetStatInfo) {
-        wasm_module_inst_t pWasmModule = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModule, _pAppRetStatInfo, _pAppRetStatInfo->struct_size))
+        wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppRetStatInfo, _pAppRetStatInfo->struct_size))
             return UVWASI_EFAULT;
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModule);
+        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
         uvwasi_fd_wrap_t* pFDWrap = nullptr;
         uvwasi_errno_t err = uvwasi_fd_table_get(pUVWasi->fds, fd, &pFDWrap, 0, 0);
         if (err != 0)

@@ -37,4 +37,5 @@
 #else
 #include <unistd.h>
 #define INVALID_FD (-1)
+#define INVALID_SOCKET (-1)
 #endif

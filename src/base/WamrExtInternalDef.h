@@ -45,6 +45,19 @@ struct WamrExtInstance {
 namespace WAMR_EXT_NS {
     extern thread_local char gLastErrorStr[200];
     namespace wasi {
+        typedef long long wasi_time_t;
+        typedef long long wasi_suseconds_t;
+
+        struct wasi_timeval_t {
+            wasi_time_t tv_sec;
+            wasi_suseconds_t tv_usec;
+        };
+
+        struct wasi_iovec_t {
+            uint32_t app_buf_offset;
+            uint32_t buf_len;
+        };
+
         struct wamr_wasi_struct_base {
             uint16_t struct_ver;
             uint16_t struct_size;

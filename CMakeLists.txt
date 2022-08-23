@@ -7,6 +7,7 @@ if (CMAKE_COMPILER_IS_GNUCC)
     endif()
 endif()
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_STANDARD 11)
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(PROJECT_BUILD_TYPE "Debug")
@@ -222,6 +223,10 @@ if (NOT MSVC OR NOT CMAKE_C_COMPILER_ID MATCHES "MSVC")
         endif()
     endif()
 endif ()
+if (STATIC_LINK)
+    message(STATUS "Enabled -static to build static executable")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+endif()
 
 set(WAMR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wasm-micro-runtime)
 if (LINUX)
@@ -254,6 +259,7 @@ add_library(wamr_ext_obj OBJECT
         src/wamr_ext_lib/WasiPthreadExt.cpp
         src/wamr_ext_lib/WasiWamrExt.cpp
         src/wamr_ext_lib/WasiFSExt.cpp
+        src/wamr_ext_lib/WasiSocketExt.cpp
         )
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
