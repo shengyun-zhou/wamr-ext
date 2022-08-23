@@ -23,7 +23,10 @@ namespace WAMR_EXT_NS {
         static uvwasi_errno_t GetSysLastSocketError();
         static uvwasi_errno_t WasiAppSockAddrToHostSockAddr(const wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr,
                                                             sockaddr_storage& hostSockAddr, socklen_t& outAddrLen);
-        static void HostSockAddrToWasiAppSockAddr(const sockaddr_storage& hostSockAddr, wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr);
+        static void HostSockAddrToWasiAppSockAddr(const sockaddr* pHostSockAddr, wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr);
+        static void HostSockAddrToWasiAppSockAddr(const sockaddr_storage& hostSockAddr, wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr) {
+            HostSockAddrToWasiAppSockAddr((const sockaddr*)&hostSockAddr, pWasiAppSockAddr);
+        }
         static uvwasi_errno_t GetHostSocketFD(wasm_module_inst_t pWasmModuleInst, int32_t appSockFD, uv_os_sock_t& outHostSockFD);
         static uvwasi_errno_t GetHostSocketFD(wasm_module_inst_t pWasmModuleInst, int32_t appSockFD, uv_os_sock_t& outHostSockFD, uvwasi_filetype_t& outWasiSockType);
         static uvwasi_errno_t InsertNewHostSocketFDToTable(wasm_module_inst_t pWasmModuleInst, uv_os_sock_t hostSockFD, uvwasi_filetype_t wasiSockType, int32_t& outAppSockFD);
@@ -49,5 +52,6 @@ namespace WAMR_EXT_NS {
         static uint32_t MapWasiSockMsgFlags(uint32_t appSockMsgFlags);
         static int32_t SockRecvMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
         static int32_t SockSendMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
+        static int32_t SockGetIfAddrs(wasm_exec_env_t pExecEnv, wasi::wamr_wasi_struct_base* _pAppIfAddrsReq);
     };
 }

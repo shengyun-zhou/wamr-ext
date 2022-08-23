@@ -1,5 +1,12 @@
 #include "WasiSocketExt.h"
 #include <uv.h>
+#ifndef _WIN32
+#include <ifaddrs.h>
+#include <net/if.h>
+#ifdef __linux__
+#include <linux/if_packet.h>
+#endif
+#endif
 
 namespace WAMR_EXT_NS {
     namespace wasi {
@@ -34,6 +41,25 @@ namespace WAMR_EXT_NS {
             uint64_t ret_data_size;
         };
         wamr_wasi_struct_assert(wamr_wasi_msghdr);
+
+#define WAMR_IF_NAME_MAX_LEN 32
+
+        struct wamr_wasi_ifaddr {
+            char ifa_name[WAMR_IF_NAME_MAX_LEN];
+            uint32_t ifa_flags;
+            struct wamr_wasi_sockaddr_storage ifa_addr;
+            struct wamr_wasi_sockaddr_storage ifa_netmask;
+            struct wamr_wasi_sockaddr_storage ifu_broadaddr;
+            uint8_t ifa_hwaddr[6];
+            uint32_t ifa_ifindex;
+        };
+        static_assert(std::is_trivial<wamr_wasi_ifaddr>::value);
+
+        struct wamr_wasi_ifaddrs_req : public wamr_wasi_struct_base {
+            uint32_t app_ret_ifaddrs_buf;   // Array of wamr_wasi_ifaddr
+            uint32_t ret_ifaddr_cnt;
+        };
+        wamr_wasi_struct_assert(wamr_wasi_ifaddrs_req);
     }
 
     void WasiSocketExt::Init() {
@@ -50,6 +76,7 @@ namespace WAMR_EXT_NS {
             {"sock_setopt", (void*)SockSetOpt, "(iii*i)i", nullptr},
             {"sock_recvmsg", (void*)SockRecvMsg, "(i**i)i", nullptr},
             {"sock_sendmsg", (void*)SockSendMsg, "(i**i)i", nullptr},
+            {"sock_getifaddrs", (void*)SockGetIfAddrs, "(*)i", nullptr},
         };
         wasm_runtime_register_natives("socket_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
     }
@@ -131,16 +158,18 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
-    void WasiSocketExt::HostSockAddrToWasiAppSockAddr(const sockaddr_storage &hostSockAddr,
+    void WasiSocketExt::HostSockAddrToWasiAppSockAddr(const sockaddr* pHostSockAddr,
                                                       wasi::wamr_wasi_sockaddr_storage *pWasiAppSockAddr) {
-        if (hostSockAddr.ss_family == AF_INET) {
+        if (!pHostSockAddr) {
+            pWasiAppSockAddr->family = __WASI_AF_UNSPEC;
+        } else if (pHostSockAddr->sa_family == AF_INET) {
             pWasiAppSockAddr->family = __WASI_AF_INET;
-            const struct sockaddr_in* pHostSockAddr4 = (struct sockaddr_in*)&hostSockAddr;
+            const struct sockaddr_in* pHostSockAddr4 = (struct sockaddr_in*)pHostSockAddr;
             memcpy(pWasiAppSockAddr->u_addr.inet.addr, &pHostSockAddr4->sin_addr.s_addr, 4);
             pWasiAppSockAddr->u_addr.inet.port = pHostSockAddr4->sin_port;
-        } else if (hostSockAddr.ss_family == AF_INET6) {
+        } else if (pHostSockAddr->sa_family == AF_INET6) {
             pWasiAppSockAddr->family = __WASI_AF_INET6;
-            const struct sockaddr_in6* pHostSockAddr6 = (struct sockaddr_in6*)&hostSockAddr;
+            const struct sockaddr_in6* pHostSockAddr6 = (struct sockaddr_in6*)pHostSockAddr;
             memcpy(pWasiAppSockAddr->u_addr.inet6.addr, pHostSockAddr6->sin6_addr.s6_addr, 16);
             pWasiAppSockAddr->u_addr.inet6.port = pHostSockAddr6->sin6_port;
             pWasiAppSockAddr->u_addr.inet6.flowinfo = pHostSockAddr6->sin6_flowinfo;
@@ -642,6 +671,117 @@ namespace WAMR_EXT_NS {
         }
 #else
 #error "Sending data is not implemented for Win32"
+#endif
+        return err;
+    }
+
+#define __WASI_IFF_UP	0x1
+#define __WASI_IFF_BROADCAST 0x2
+#define __WASI_IFF_LOOPBACK 0x8
+#define __WASI_IFF_POINTOPOINT 0x10
+#define __WASI_IFF_RUNNING 0x40
+#define __WASI_IFF_PROMISC 0x100
+#define __WASI_IFF_ALLMULTI 0x200
+#define __WASI_IFF_MULTICAST 0x1000
+
+    int32_t WasiSocketExt::SockGetIfAddrs(wasm_exec_env_t pExecEnv, wasi::wamr_wasi_struct_base *_pAppIfAddrsReq) {
+        wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppIfAddrsReq, _pAppIfAddrsReq->struct_size))
+            return UVWASI_EFAULT;
+        wasi::wamr_wasi_ifaddrs_req* pAppIfAddrsReq = static_cast<wasi::wamr_wasi_ifaddrs_req*>(_pAppIfAddrsReq);
+        pAppIfAddrsReq->ret_ifaddr_cnt = 0;
+        uvwasi_errno_t err = 0;
+#ifndef _WIN32
+        static auto funcMapIfFlags = [](const uint32_t hostFlags) -> uint32_t {
+            uint32_t retWasiFlags = 0;
+#define X(f) std::pair<uint32_t, uint32_t>(f, __WASI_##f)
+            for (const auto& flagPair : {
+                X(IFF_UP),
+                X(IFF_BROADCAST),
+                X(IFF_LOOPBACK),
+                X(IFF_POINTOPOINT),
+                X(IFF_RUNNING),
+                X(IFF_PROMISC),
+                X(IFF_ALLMULTI),
+                X(IFF_MULTICAST),
+            }) {
+                if (hostFlags & flagPair.first)
+                    retWasiFlags |= flagPair.second;
+            }
+#undef X
+            return retWasiFlags;
+        };
+        struct IfInfo {
+            std::vector<struct ifaddrs*> ifAddrs;
+            uint8_t mac[6]{0};
+            uint32_t ifIndex{0};
+            uint32_t flags{0};
+        };
+        std::map<std::string, IfInfo> tempIfMap;
+        struct ifaddrs* if_addrs = nullptr;
+        if (getifaddrs(&if_addrs) == 0) {
+            for (auto if_addr = if_addrs; if_addr; if_addr = if_addr->ifa_next) {
+                auto& ifInfo = tempIfMap[if_addr->ifa_name];
+                ifInfo.flags = if_addr->ifa_flags;
+                if (if_addr->ifa_addr) {
+                    if (if_addr->ifa_addr->sa_family == AF_INET || if_addr->ifa_addr->sa_family == AF_INET6) {
+                        ifInfo.ifAddrs.push_back(if_addr);
+                    } else {
+#ifdef __linux__
+                        if (if_addr->ifa_addr->sa_family == AF_PACKET) {
+                            struct sockaddr_ll *lladdr = (struct sockaddr_ll*)if_addr->ifa_addr;
+                            memcpy(ifInfo.mac, lladdr->sll_addr, 6);
+                            ifInfo.ifIndex = lladdr->sll_ifindex;
+                        }
+#else
+#error "Getting MAC from net interfaces is not implemented"
+#endif
+                    }
+                }
+            }
+            for (const auto& it : tempIfMap)
+                pAppIfAddrsReq->ret_ifaddr_cnt += it.second.ifAddrs.empty() ? 1 : it.second.ifAddrs.size();
+            if (pAppIfAddrsReq->ret_ifaddr_cnt > 0) {
+                uint32_t retAppIfAddrIdx = 0;
+                wasi::wamr_wasi_ifaddr* pAppIfAddrs = nullptr;
+                pAppIfAddrsReq->app_ret_ifaddrs_buf = wasm_runtime_module_malloc(pWasmModuleInst, sizeof(wasi::wamr_wasi_ifaddr) * pAppIfAddrsReq->ret_ifaddr_cnt,
+                                                                                 (void**)&pAppIfAddrs);
+                if (!pAppIfAddrs) {
+                    err = UVWASI_ENOMEM;
+                } else {
+                    memset(pAppIfAddrs, 0, sizeof(wasi::wamr_wasi_ifaddr) * pAppIfAddrsReq->ret_ifaddr_cnt);
+                    for (const auto& it : tempIfMap) {
+                        if (it.second.ifAddrs.empty()) {
+                            auto& curAppIfAddr = pAppIfAddrs[retAppIfAddrIdx++];
+                            snprintf(curAppIfAddr.ifa_name, sizeof(curAppIfAddr.ifa_name), "%s", it.first.c_str());
+                            curAppIfAddr.ifa_flags = funcMapIfFlags(it.second.flags);
+                            memcpy(curAppIfAddr.ifa_hwaddr, it.second.mac, 6);
+                            curAppIfAddr.ifa_ifindex = it.second.ifIndex;
+                            curAppIfAddr.ifa_addr.family = __WASI_AF_UNSPEC;
+                            curAppIfAddr.ifa_netmask.family = __WASI_AF_UNSPEC;
+                            curAppIfAddr.ifu_broadaddr.family = __WASI_AF_UNSPEC;
+                        } else {
+                            for (const auto* pHostIfAddr : it.second.ifAddrs) {
+                                auto& curAppIfAddr = pAppIfAddrs[retAppIfAddrIdx++];
+                                snprintf(curAppIfAddr.ifa_name, sizeof(curAppIfAddr.ifa_name), "%s", it.first.c_str());
+                                memcpy(curAppIfAddr.ifa_hwaddr, it.second.mac, 6);
+                                curAppIfAddr.ifa_ifindex = it.second.ifIndex;
+                                curAppIfAddr.ifa_flags = funcMapIfFlags(pHostIfAddr->ifa_flags);
+                                HostSockAddrToWasiAppSockAddr(pHostIfAddr->ifa_addr, &curAppIfAddr.ifa_addr);
+                                HostSockAddrToWasiAppSockAddr(pHostIfAddr->ifa_netmask, &curAppIfAddr.ifa_netmask);
+                                HostSockAddrToWasiAppSockAddr(pHostIfAddr->ifa_broadaddr, &curAppIfAddr.ifu_broadaddr);
+                            }
+                        }
+                    }
+                    assert(retAppIfAddrIdx == pAppIfAddrsReq->ret_ifaddr_cnt);
+                }
+            }
+            freeifaddrs(if_addrs);
+        } else {
+            err = GetSysLastSocketError();
+        }
+#else
+#error "Getting net interface info is not implemented for Win32"
 #endif
         return err;
     }
