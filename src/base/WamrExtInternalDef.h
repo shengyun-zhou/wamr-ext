@@ -5,6 +5,7 @@ struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
     std::map<std::string, std::string> preOpenDirs;     // mapped dir -> host dir
     std::map<std::string, std::string> envVars;
+    std::vector<std::string> args;
 
     WamrExtInstanceConfig();
 };
@@ -25,6 +26,7 @@ struct WamrExtInstance {
         std::vector<const char*> preOpenMapDirs;
         std::list<std::string> envVarsStringList;
         std::vector<const char*> envVars;
+        std::vector<const char*> argv;
 
         InstRuntimeData(const WamrExtInstanceConfig& config);
         InstRuntimeData(const InstRuntimeData&) = delete;

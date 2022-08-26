@@ -24,14 +24,16 @@ extern "C" {
 
 enum WamrExtInstanceOpt {
     // Set maximum thread number, value type: uint32_t*
-    WAMR_INST_OPT_MAX_THREAD_NUM = 1,
-    // Add host dir for WAsm app, value type: WamrKeyValueSS*
-    WAMR_INST_OPT_ADD_HOST_DIR = 2,
-    // Add environment variable for WAsm app, value type: WamrKeyValueSS*
-    WAMR_INST_OPT_ADD_ENV_VAR = 3,
+    WAMR_EXT_INST_OPT_MAX_THREAD_NUM = 1,
+    // Add host dir for WAsm app, value type: WamrExtKeyValueSS*
+    WAMR_EXT_INST_OPT_ADD_HOST_DIR = 2,
+    // Add environment variable for WAsm app, value type: WamrExtKeyValueSS*
+    WAMR_EXT_INST_OPT_ADD_ENV_VAR = 3,
+    // Set arguments that will be passed to main(), value type: char**(ends with NULL)
+    WAMR_EXT_INST_OPT_ARG = 4,
 };
 
-struct WamrKeyValueSS {
+struct WamrExtKeyValueSS {
     const char* k;
     const char* v;
 };
@@ -42,8 +44,7 @@ WAMR_EXT_API int32_t wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, c
 WAMR_EXT_API int32_t wamr_ext_module_set_inst_default_opt(wamr_ext_module_t* module, enum WamrExtInstanceOpt opt, const void* value);
 WAMR_EXT_API int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t* inst);
 WAMR_EXT_API int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value);
-WAMR_EXT_API int32_t wamr_ext_instance_init(wamr_ext_instance_t* inst);
-WAMR_EXT_API int32_t wamr_ext_instance_run_main(wamr_ext_instance_t* inst, int32_t argc, char** argv);
+WAMR_EXT_API int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst);
 
 WAMR_EXT_API const char* wamr_ext_strerror(int32_t err);
 

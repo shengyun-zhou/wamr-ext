@@ -24,6 +24,8 @@ WamrExtInstance::InstRuntimeData::InstRuntimeData(const WamrExtInstanceConfig &c
         envVarsStringList.emplace_back(std::move(p.first + '=' + p.second));
         envVars.push_back(envVarsStringList.back().c_str());
     }
+    for (const auto& p : config.args)
+        argv.push_back(p.c_str());
 }
 
 namespace WAMR_EXT_NS {

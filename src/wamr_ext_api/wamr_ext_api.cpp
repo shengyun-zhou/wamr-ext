@@ -7,9 +7,11 @@
 
 namespace WAMR_EXT_NS {
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
+        if (!value)
+            return EINVAL;
         int32_t ret = 0;
         switch (opt) {
-            case WAMR_INST_OPT_MAX_THREAD_NUM: {
+            case WAMR_EXT_INST_OPT_MAX_THREAD_NUM: {
                 uint32_t maxThreadNum = *((uint32_t*)value);
                 if (maxThreadNum > 30)
                     ret = EINVAL;
@@ -17,15 +19,21 @@ namespace WAMR_EXT_NS {
                     config.maxThreadNum = maxThreadNum;
                 break;
             }
-            case WAMR_INST_OPT_ADD_HOST_DIR: {
-                WamrKeyValueSS* kv = (WamrKeyValueSS*)value;
+            case WAMR_EXT_INST_OPT_ADD_HOST_DIR: {
+                WamrExtKeyValueSS* kv = (WamrExtKeyValueSS*)value;
                 // v: mapped dir, k: host dir
                 config.preOpenDirs[kv->v] = kv->k;
                 break;
             }
-            case WAMR_INST_OPT_ADD_ENV_VAR: {
-                WamrKeyValueSS* kv = (WamrKeyValueSS*)value;
+            case WAMR_EXT_INST_OPT_ADD_ENV_VAR: {
+                WamrExtKeyValueSS* kv = (WamrExtKeyValueSS*)value;
                 config.envVars[kv->k] = kv->v;
+                break;
+            }
+            case WAMR_EXT_INST_OPT_ARG: {
+                config.args.clear();
+                for (int i = 0; ((char**)value)[i]; i++)
+                    config.args.emplace_back(((char**)value)[i]);
                 break;
             }
             default:
@@ -110,35 +118,30 @@ int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanc
     return WAMR_EXT_NS::WamrExtSetInstanceOpt((*inst)->instConfig, opt, value);
 }
 
-int32_t wamr_ext_instance_init(wamr_ext_instance_t* inst) {
+int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
     if (!inst || !(*inst))
         return EINVAL;
     auto pInst = *inst;
     pInst->pRuntimeData.reset(new WamrExtInstance::InstRuntimeData(pInst->instConfig));
-    std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
-    wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preOpenHostDirs.data(), pInst->pRuntimeData->preOpenHostDirs.size(),
-                                  pInst->pRuntimeData->preOpenMapDirs.data(), pInst->pRuntimeData->preOpenMapDirs.size(),
-                                  pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(), nullptr, 0,
-                                  fileno(stdin), fileno(stdout), fileno(stderr));
-    wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
-    // No app heap size for each module
-    pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
-                                               WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
-    if (!pInst->instance)
-        return -1;
-    return 0;
-}
-
-int32_t wamr_ext_instance_run_main(wamr_ext_instance_t* inst, int32_t argc, char** argv) {
-    if (!inst || !(*inst))
-        return EINVAL;
-    auto pInst = *inst;
-    int32_t ret = 0;
-    if (!wasm_application_execute_main(pInst->instance, argc, argv)) {
-        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->instance));
-        ret = -1;
+    {
+        std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
+        wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preOpenHostDirs.data(), pInst->pRuntimeData->preOpenHostDirs.size(),
+                                      pInst->pRuntimeData->preOpenMapDirs.data(), pInst->pRuntimeData->preOpenMapDirs.size(),
+                                      pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(),
+                                      const_cast<char**>(pInst->pRuntimeData->argv.data()), pInst->pRuntimeData->argv.size(),
+                                      fileno(stdin), fileno(stdout), fileno(stderr));
+        wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
+        // No app heap size for each module
+        pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
+                                                   WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
+        if (!pInst->instance)
+            return -1;
     }
-    return ret;
+    if (!wasm_application_execute_main(pInst->instance, 0, nullptr)) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->instance));
+        return -1;
+    }
+    return 0;
 }
 
 const char* wamr_ext_strerror(int32_t err) {
