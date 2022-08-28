@@ -243,7 +243,7 @@ set(WAMR_BUILD_LIB_PTHREAD 1)
 set(WAMR_BUILD_DUMP_CALL_STACK 1)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
-target_link_libraries(wamr uvwasi_a uv_a)
+target_link_libraries(wamr uv_a)
 
 set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_ROOT_DIR}/core/iwasm/libraries

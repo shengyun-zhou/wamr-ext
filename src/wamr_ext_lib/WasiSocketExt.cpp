@@ -1,4 +1,5 @@
 #include "WasiSocketExt.h"
+#include <thread>
 #include <uv.h>
 #ifndef _WIN32
 #include <ifaddrs.h>
@@ -79,6 +80,11 @@ namespace WAMR_EXT_NS {
             {"sock_getifaddrs", (void*)SockGetIfAddrs, "(*)i", nullptr},
         };
         wasm_runtime_register_natives("socket_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
+        // Override some original WASI implementation
+        static NativeSymbol wasiPreview1NativeSymbols[] = {
+            {"poll_oneoff", (void*)WasiPollOneOff, "(**i*)i", nullptr},
+        };
+        wasm_runtime_register_natives("wasi_snapshot_preview1", wasiPreview1NativeSymbols, sizeof(wasiPreview1NativeSymbols) / sizeof(NativeSymbol));
     }
 
     uvwasi_errno_t WasiSocketExt::GetSysLastSocketError() {
@@ -783,6 +789,127 @@ namespace WAMR_EXT_NS {
 #else
 #error "Getting net interface info is not implemented for Win32"
 #endif
+        return err;
+    }
+
+    int32_t WasiSocketExt::WasiPollOneOff(wasm_exec_env_t pExecEnv, const uvwasi_subscription_t *pAppSub,
+                                          uvwasi_event_t *pAppOutEvent, uint32_t appSubCount, uint32_t *pAppNEvents) {
+        wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, (void*)pAppSub, sizeof(*pAppSub) * appSubCount) ||
+            !wasm_runtime_validate_native_addr(pWasmModuleInst, pAppOutEvent, sizeof(*pAppOutEvent) * appSubCount)) {
+            return UVWASI_EFAULT;
+        }
+        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
+        *pAppNEvents = 0;
+        if (appSubCount == 0)
+            return 0;
+
+        uint64_t timeoutNanoSec = UINT64_MAX;
+        const uvwasi_subscription_t* pTimeoutSub = nullptr;
+        bool bSleepOnly = true;
+#ifndef _WIN32
+        typedef struct pollfd host_pollfd;
+#else
+#error "Polling FDs doesn't implement for Win32"
+#endif
+        host_pollfd* pollArr = static_cast<host_pollfd*>(alloca(sizeof(host_pollfd) * appSubCount));
+        auto* pFDTable = pUVWasi->fds;
+        uv_rwlock_wrlock(&pFDTable->rwlock);
+        for (uint32_t i = 0; i < appSubCount; i++) {
+            const auto& appSub = pAppSub[i];
+            if (appSub.type == UVWASI_EVENTTYPE_CLOCK) {
+                uint64_t tempTimeout = UINT64_MAX;
+                if ((appSub.u.clock.flags & UVWASI_SUBSCRIPTION_CLOCK_ABSTIME) == 0) {
+                    tempTimeout = appSub.u.clock.timeout;
+                } else {
+                    uvwasi_timestamp_t curTs = 0;
+                    if (uvwasi_clock_time_get(pUVWasi, appSub.u.clock.clock_id, appSub.u.clock.precision, &curTs) == 0)
+                        tempTimeout = curTs < appSub.u.clock.timeout ? appSub.u.clock.timeout - curTs : 0;
+                }
+                if (tempTimeout < timeoutNanoSec) {
+                    timeoutNanoSec = tempTimeout;
+                    pTimeoutSub = &appSub;
+                }
+            }
+            auto& curHostPollFD = pollArr[i];
+            if (appSub.type == UVWASI_EVENTTYPE_FD_WRITE || appSub.type == UVWASI_EVENTTYPE_FD_READ) {
+                uvwasi_fd_wrap_t* pFDWrap = nullptr;
+                if (uvwasi_fd_table_get_nolock(pFDTable, appSub.u.fd_readwrite.fd, &pFDWrap,
+                                               UVWASI_RIGHT_POLL_FD_READWRITE, 0) == 0) {
+#ifdef _WIN32
+                    if (pFDWrap->type == UVWASI_FILETYPE_SOCKET_DGRAM || pFDWrap->type == UVWASI_FILETYPE_SOCKET_STREAM) {
+                        // Windows supports only sockets
+#else
+                    {
+#endif
+                        curHostPollFD.fd = (uv_os_sock_t)uv_get_osfhandle(pFDWrap->fd);
+                        curHostPollFD.events = appSub.type == UVWASI_EVENTTYPE_FD_WRITE ? POLLWRNORM : POLLRDNORM;
+                        curHostPollFD.revents = 0;
+                        bSleepOnly = false;
+                        uv_mutex_unlock(&pFDWrap->mutex);
+                        continue;
+                    }
+                    uv_mutex_unlock(&pFDWrap->mutex);
+                }
+            }
+            curHostPollFD.fd = INVALID_SOCKET;
+            curHostPollFD.events = curHostPollFD.revents = 0;
+        }
+        uv_rwlock_wrunlock(&pFDTable->rwlock);
+        if (bSleepOnly) {
+            if (!pTimeoutSub)
+                return UVWASI_EINVAL;
+            if (timeoutNanoSec > 0)
+                std::this_thread::sleep_for(std::chrono::nanoseconds(timeoutNanoSec));
+            pAppOutEvent[0].error = 0;
+            pAppOutEvent[0].userdata = pTimeoutSub->userdata;
+            pAppOutEvent[0].type = pTimeoutSub->type;
+            *pAppNEvents = 1;
+            return 0;
+        }
+        uint64_t pollTimeout = std::min<uint64_t>(timeoutNanoSec / 1000 / 1000, INT_MAX);
+        uvwasi_errno_t err = 0;
+#ifndef _WIN32
+        int hostNEvents = poll(pollArr, appSubCount, pollTimeout);
+#else
+#endif
+        if (hostNEvents == -1) {
+            err = GetSysLastSocketError();
+        } else if (hostNEvents == 0) {
+            assert(pTimeoutSub);
+            if (pTimeoutSub) {
+                auto& outAppEvent = pAppOutEvent[(*pAppNEvents)++];
+                outAppEvent.error = 0;
+                outAppEvent.userdata = pTimeoutSub->userdata;
+                outAppEvent.type = pTimeoutSub->type;
+            }
+        } else if (hostNEvents > 0) {
+            for (uint32_t i = 0; i < appSubCount; i++) {
+                const auto& appSub = pAppSub[i];
+                const auto& curHostPollFD = pollArr[i];
+                if (appSub.type == UVWASI_EVENTTYPE_FD_WRITE || appSub.type == UVWASI_EVENTTYPE_FD_READ) {
+                    if (curHostPollFD.fd == INVALID_SOCKET || (curHostPollFD.revents & POLLNVAL)) {
+                        auto& outAppEvent = pAppOutEvent[(*pAppNEvents)++];
+                        outAppEvent.error = UVWASI_EBADF;
+                        outAppEvent.userdata = appSub.userdata;
+                        outAppEvent.type = appSub.type;
+                    } else if (curHostPollFD.revents & (POLLRDNORM | POLLWRNORM)) {
+                        auto& outAppEvent = pAppOutEvent[(*pAppNEvents)++];
+                        outAppEvent.error = 0;
+                        outAppEvent.userdata = appSub.userdata;
+                        outAppEvent.type = appSub.type;
+                        if (curHostPollFD.revents & POLLHUP)
+                            outAppEvent.u.fd_readwrite.flags = UVWASI_EVENT_FD_READWRITE_HANGUP;
+                    } else if (curHostPollFD.revents & POLLHUP) {
+                        auto& outAppEvent = pAppOutEvent[(*pAppNEvents)++];
+                        outAppEvent.error = UVWASI_EPIPE;
+                        outAppEvent.userdata = appSub.userdata;
+                        outAppEvent.type = appSub.type;
+                        outAppEvent.u.fd_readwrite.flags = UVWASI_EVENT_FD_READWRITE_HANGUP;
+                    }
+                }
+            }
+        }
         return err;
     }
 }

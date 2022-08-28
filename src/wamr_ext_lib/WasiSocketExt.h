@@ -39,6 +39,8 @@ namespace WAMR_EXT_NS {
         static int32_t SockGetSockName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppSockAddr);
         static int32_t SockGetPeerName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppSockAddr);
         static int32_t SockShutdown(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t appHow);
+        static int32_t WasiPollOneOff(wasm_exec_env_t pExecEnv, const uvwasi_subscription_t* pAppSub,
+                                      uvwasi_event_t *pAppOutEvent, uint32_t appSubCount, uint32_t *pAppNEvents);
 
         enum HostSockOptValType {
             UINT32,
