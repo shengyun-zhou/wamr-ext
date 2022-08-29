@@ -5,6 +5,8 @@
 int main(int argc, char** argv) {
     argparse::ArgumentParser ap("wamr_ext_miniapp");
     ap.add_argument("--max-threads").help("maximum thread number").scan<'i', int>().default_value(0);
+    ap.add_argument("--dir").default_value<std::vector<std::string>>({}).append().
+        help("map host directories to the path accessed by Wasm app, eg: --dir /host/p1:/wasm/p1 --dir /host/p2:/wasm/p2");
     ap.add_argument("file_and_args").help("Wasm app file to load and arguments passed to main() of the wasm app").remaining();
     try {
         ap.parse_args(argc, argv);
@@ -30,6 +32,24 @@ int main(int argc, char** argv) {
     }
     if (maxThreadNum > 0)
         wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_MAX_THREAD_NUM, &maxThreadNum);
+    auto mapDirs = ap.get<std::vector<std::string>>("--dir");
+    for (const auto& strMapDir : mapDirs) {
+        auto sepPos = strMapDir.find(':');
+        if (sepPos == std::string::npos) {
+            printf("Wrong mapping dir format: %s\n", strMapDir.c_str());
+            std::exit(1);
+        }
+        std::string hostDir = strMapDir.substr(0, sepPos);
+        std::string wasmMappedDir = strMapDir.substr(sepPos + 1);
+        if (hostDir.empty() || wasmMappedDir.empty()) {
+            printf("No host directory or mapped directory is given: %s\n", strMapDir.c_str());
+            std::exit(1);
+        }
+        WamrExtKeyValueSS kvss;
+        kvss.k = hostDir.c_str();
+        kvss.v = wasmMappedDir.c_str();
+        wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_ADD_HOST_DIR, &kvss);
+    }
     wamr_ext_instance_t inst;
     wamr_ext_instance_create(&module, &inst);
     wamr_ext_instance_set_opt(&inst, WAMR_EXT_INST_OPT_ARG, mainArgv);
