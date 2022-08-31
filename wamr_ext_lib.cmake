@@ -25,6 +25,7 @@ add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
 target_link_libraries(wamr uv_a)
 
 set(WAMR_EXT_INCLUDE_DIRS
+        ${WAMR_EXT_ROOT_DIR}/include
         ${WAMR_ROOT_DIR}/core/iwasm/libraries
         ${WAMR_ROOT_DIR}/core/iwasm
         ${uvwasi_SOURCE_DIR}/src

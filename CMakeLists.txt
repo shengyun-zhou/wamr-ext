@@ -235,5 +235,5 @@ include(wamr_ext_lib.cmake)
 
 add_executable(wamr_ext_miniapp
         src/wamr_ext_app/MiniApp.cpp)
-target_include_directories(wamr_ext_miniapp PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
+target_include_directories(wamr_ext_miniapp PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 target_link_libraries(wamr_ext_miniapp PRIVATE wamr_ext_static)
