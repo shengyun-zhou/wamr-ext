@@ -227,50 +227,11 @@ if (STATIC_LINK)
     message(STATUS "Enabled -static to build static executable")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 endif()
-
-set(WAMR_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wasm-micro-runtime)
-if (LINUX)
-    set(WAMR_BUILD_PLATFORM "linux")
-endif()
 if (NOT WAMR_BUILD_TARGET)
     string(TOUPPER ${PLATFORM_GUESS_ARCH} WAMR_BUILD_TARGET)
 endif()
-set(WAMR_BUILD_INTERP 1)
-set(WAMR_BUILD_FAST_INTERP 1)
-set(WAMR_BUILD_LIBC_BUILTIN 1)
-set(WAMR_BUILD_LIBC_UVWASI 1)
-set(WAMR_BUILD_LIB_PTHREAD 1)
-set(WAMR_BUILD_DUMP_CALL_STACK 1)
-set(WAMR_BUILD_CUSTOM_NAME_SECTION 1)
-include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
-add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
-target_link_libraries(wamr uv_a)
 
-set(WAMR_EXT_INCLUDE_DIRS
-        ${WAMR_ROOT_DIR}/core/iwasm/libraries
-        ${WAMR_ROOT_DIR}/core/iwasm
-        ${uvwasi_SOURCE_DIR}/src
-        third_party
-        )
-
-add_library(wamr_ext_obj OBJECT
-        src/base/Utility.cpp
-        src/base/FSUtility.cpp
-        src/base/WamrExtInternalDef.cpp
-        src/wamr_ext_lib/WasiPthreadExt.cpp
-        src/wamr_ext_lib/WasiWamrExt.cpp
-        src/wamr_ext_lib/WasiFSExt.cpp
-        src/wamr_ext_lib/WasiSocketExt.cpp
-        )
-target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
-
-add_library(wamr_ext_static STATIC
-        $<TARGET_OBJECTS:wamr_ext_obj>
-        src/wamr_ext_api/wamr_ext_api.cpp
-        )
-target_include_directories(wamr_ext_static PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
-target_compile_definitions(wamr_ext_static PRIVATE -DWAMR_EXT_STATIC_LIB)
-target_link_libraries(wamr_ext_static PRIVATE wamr)
+include(wamr_ext_lib.cmake)
 
 add_executable(wamr_ext_miniapp
         src/wamr_ext_app/MiniApp.cpp)
