@@ -57,6 +57,7 @@ namespace WAMR_EXT_NS {
         static_assert(std::is_trivial<wamr_wasi_ifaddr>::value);
 
         struct wamr_wasi_ifaddrs_req : public wamr_wasi_struct_base {
+            uint32_t app_func_malloc;
             uint32_t app_ret_ifaddrs_buf;   // Array of wamr_wasi_ifaddr
             uint32_t ret_ifaddr_cnt;
         };
@@ -749,12 +750,12 @@ namespace WAMR_EXT_NS {
                 pAppIfAddrsReq->ret_ifaddr_cnt += it.second.ifAddrs.empty() ? 1 : it.second.ifAddrs.size();
             if (pAppIfAddrsReq->ret_ifaddr_cnt > 0) {
                 uint32_t retAppIfAddrIdx = 0;
-                wasi::wamr_wasi_ifaddr* pAppIfAddrs = nullptr;
-                pAppIfAddrsReq->app_ret_ifaddrs_buf = wasm_runtime_module_malloc(pWasmModuleInst, sizeof(wasi::wamr_wasi_ifaddr) * pAppIfAddrsReq->ret_ifaddr_cnt,
-                                                                                 (void**)&pAppIfAddrs);
-                if (!pAppIfAddrs) {
+                uint32_t appMallocArgv = sizeof(wasi::wamr_wasi_ifaddr) * pAppIfAddrsReq->ret_ifaddr_cnt;
+                if (!wasm_runtime_call_indirect(pExecEnv, pAppIfAddrsReq->app_func_malloc, 1, &appMallocArgv) || appMallocArgv == 0) {
                     err = UVWASI_ENOMEM;
                 } else {
+                    pAppIfAddrsReq->app_ret_ifaddrs_buf = appMallocArgv;
+                    wasi::wamr_wasi_ifaddr* pAppIfAddrs = (wasi::wamr_wasi_ifaddr*)wasm_runtime_addr_app_to_native(pWasmModuleInst, appMallocArgv);
                     memset(pAppIfAddrs, 0, sizeof(wasi::wamr_wasi_ifaddr) * pAppIfAddrsReq->ret_ifaddr_cnt);
                     for (const auto& it : tempIfMap) {
                         if (it.second.ifAddrs.empty()) {
