@@ -33,6 +33,14 @@ namespace WAMR_EXT_NS {
             {"pthread_rwlock_unlock", (void*)PthreadRWLockUnlock, "(*)i", &g_instance},
             {"pthread_setname_np", (void*)PthreadSetName, "(*)i", &g_instance},
             {"pthread_getname_np", (void*)PthreadGetName, "(*i)i", &g_instance},
+
+            {"sem_init", (void*)SemaphoreInit, "(*i)i", &g_instance},
+            {"sem_wait", (void*)SemaphoreWait, "(*)i", &g_instance},
+            {"sem_timedwait", (void*)SemaphoreTimedWait, "(*I)i", &g_instance},
+            {"sem_trywait", (void*)SemaphoreTryWait, "(*)i", &g_instance},
+            {"sem_post", (void*)SemaphorePost, "(*)i", &g_instance},
+            {"sem_getvalue", (void*)SemaphoreGetValue, "(**)i", &g_instance},
+            {"sem_destroy", (void*)SemaphoreDestroy, "(*)i", &g_instance},
         };
         wasm_runtime_register_natives("pthread_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
     }
@@ -374,4 +382,96 @@ namespace WAMR_EXT_NS {
         return 0;
     }
 
+    int32_t WasiPthreadExt::SemaphoreInit(wasm_exec_env_t pExecEnv, uint32_t *sem, uint32_t initVal) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        std::shared_ptr<sem_t> pNewSemaphore(new sem_t);
+        if (sem_init(pNewSemaphore.get(), 0, initVal) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        std::lock_guard<std::mutex> _al(pThis->m_semaphoreMapLock);
+        while (true) {
+            *sem = pThis->m_curHandleId++;
+            auto &pSema = pThis->m_semaphoreMap[*sem];
+            if (!pSema) {
+                pSema = std::move(pNewSemaphore);
+                break;
+            }
+        }
+        return 0;
+    }
+
+    std::shared_ptr<sem_t> WasiPthreadExt::GetSemaphore(uint32_t handleID) {
+        std::lock_guard<std::mutex> _al(m_semaphoreMapLock);
+        auto it = m_semaphoreMap.find(handleID);
+        if (it != m_semaphoreMap.end())
+            return it->second;
+        return nullptr;
+    }
+
+    int32_t WasiPthreadExt::SemaphoreWait(wasm_exec_env_t pExecEnv, uint32_t *sem) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        auto pSema = pThis->GetSemaphore(*sem);
+        if (!pSema)
+            return UVWASI_EINVAL;
+        if (sem_wait(pSema.get()) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::SemaphoreTimedWait(wasm_exec_env_t pExecEnv, uint32_t *sem, uint64_t useconds) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        auto pSema = pThis->GetSemaphore(*sem);
+        if (!pSema)
+            return UVWASI_EINVAL;
+        struct timespec ts;
+        GetTimeoutTimespec(ts, useconds);
+        if (sem_timedwait(pSema.get(), &ts) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::SemaphoreTryWait(wasm_exec_env_t pExecEnv, uint32_t *sem) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        auto pSema = pThis->GetSemaphore(*sem);
+        if (!pSema)
+            return UVWASI_EINVAL;
+        if (sem_trywait(pSema.get()) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::SemaphorePost(wasm_exec_env_t pExecEnv, uint32_t *sem) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        auto pSema = pThis->GetSemaphore(*sem);
+        if (!pSema)
+            return UVWASI_EINVAL;
+        if (sem_post(pSema.get()) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::SemaphoreGetValue(wasm_exec_env_t pExecEnv, uint32_t *sem, int32_t *pAppOutVal) {
+        auto *pThis = (WasiPthreadExt*)wasm_runtime_get_function_attachment(pExecEnv);
+        auto pSema = pThis->GetSemaphore(*sem);
+        if (!pSema)
+            return UVWASI_EINVAL;
+        int hostVal = 0;
+        if (sem_getvalue(pSema.get(), &hostVal) != 0)
+            return Utility::ConvertErrnoToWasiErrno(errno);
+        // Report 0 instead of negative number if one or more threads are blocked waiting to lock the semaphore
+        *pAppOutVal = std::max(hostVal, 0);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::SemaphoreDestroy(wasm_exec_env_t pExecEnv, uint32_t *sem) {
+        auto *pThis = (WasiPthreadExt*) wasm_runtime_get_function_attachment(pExecEnv);
+        std::lock_guard<std::mutex> _al(pThis->m_semaphoreMapLock);
+        auto it = pThis->m_semaphoreMap.find(*sem);
+        if (it == pThis->m_semaphoreMap.end()) {
+            assert(false);
+            return UVWASI_EINVAL;
+        }
+        sem_destroy(it->second.get());
+        pThis->m_semaphoreMap.erase(it);
+        return 0;
+    }
 }

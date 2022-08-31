@@ -14,6 +14,8 @@ namespace WAMR_EXT_NS {
         std::unordered_map<uint32_t, std::shared_ptr<pthread_cond_t>> m_pthreadCondMap;
         std::mutex m_pthreadRWLockMapLock;
         std::unordered_map<uint32_t, std::shared_ptr<pthread_rwlock_t>> m_pthreadRWLockMap;
+        std::mutex m_semaphoreMapLock;
+        std::unordered_map<uint32_t, std::shared_ptr<sem_t>> m_semaphoreMap;
         std::atomic<uint32_t> m_curHandleId{1};
 
         static WasiPthreadExt g_instance;
@@ -47,5 +49,14 @@ namespace WAMR_EXT_NS {
         static int32_t PthreadRWLockUnlock(wasm_exec_env_t pExecEnv, uint32_t *rwlock);
         static int32_t PthreadSetName(wasm_exec_env_t pExecEnv, char* name);
         static int32_t PthreadGetName(wasm_exec_env_t pExecEnv, char* nameBuf, uint32_t bufLen);
+
+        std::shared_ptr<sem_t> GetSemaphore(uint32_t handleID);
+        static int32_t SemaphoreInit(wasm_exec_env_t pExecEnv, uint32_t *sem, uint32_t initVal);
+        static int32_t SemaphoreWait(wasm_exec_env_t pExecEnv, uint32_t *sem);
+        static int32_t SemaphoreTimedWait(wasm_exec_env_t pExecEnv, uint32_t *sem, uint64_t useconds);
+        static int32_t SemaphoreTryWait(wasm_exec_env_t pExecEnv, uint32_t *sem);
+        static int32_t SemaphorePost(wasm_exec_env_t pExecEnv, uint32_t *sem);
+        static int32_t SemaphoreGetValue(wasm_exec_env_t pExecEnv, uint32_t *sem, int32_t *pAppOutVal);
+        static int32_t SemaphoreDestroy(wasm_exec_env_t pExecEnv, uint32_t *sem);
     };
 }
