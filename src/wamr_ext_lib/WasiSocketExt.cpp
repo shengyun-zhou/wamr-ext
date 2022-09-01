@@ -398,6 +398,11 @@ namespace WAMR_EXT_NS {
 
 #define __WASI_TCP_NODELAY     1
 
+#define __WASI_IP_TTL          2
+
+#define __WASI_IPV6_V6ONLY          26
+#define __WASI_IPV6_UNICAST_HOPS    16
+
     uvwasi_errno_t WasiSocketExt::MapWasiSockOpt(int32_t appLevel, int32_t appOptName, int &hostOptLevel, int &hostOptName,
                                                  HostSockOptValType& hostOptValType) {
         hostOptValType = UINT32;
@@ -448,6 +453,27 @@ namespace WAMR_EXT_NS {
             switch (appOptName) {
                 case __WASI_TCP_NODELAY:
                     hostOptName = TCP_NODELAY;
+                    break;
+                default:
+                    return UVWASI_EINVAL;
+            }
+        } else if (appLevel == __WASI_SOL_IP) {
+            hostOptLevel = SOL_IP;
+            switch (appOptName) {
+                case __WASI_IP_TTL:
+                    hostOptName = IP_TTL;
+                    break;
+                default:
+                    return UVWASI_EINVAL;
+            }
+        } else if (appLevel == __WASI_SOL_IPV6) {
+            hostOptLevel = SOL_IPV6;
+            switch (appOptName) {
+                case __WASI_IPV6_V6ONLY:
+                    hostOptName = IPV6_V6ONLY;
+                    break;
+                case __WASI_IPV6_UNICAST_HOPS:
+                    hostOptName = IPV6_UNICAST_HOPS;
                     break;
                 default:
                     return UVWASI_EINVAL;
