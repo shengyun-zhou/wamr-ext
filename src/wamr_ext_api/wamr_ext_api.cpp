@@ -115,31 +115,63 @@ int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t*
 int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value) {
     if (!inst || !(*inst))
         return EINVAL;
-    return WAMR_EXT_NS::WamrExtSetInstanceOpt((*inst)->instConfig, opt, value);
+    return WAMR_EXT_NS::WamrExtSetInstanceOpt((*inst)->config, opt, value);
 }
 
 int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
     if (!inst || !(*inst))
         return EINVAL;
     auto pInst = *inst;
-    pInst->pRuntimeData.reset(new WamrExtInstance::InstRuntimeData(pInst->instConfig));
     {
+        std::vector<const char*> tempPreOpenHostDirs;
+        std::vector<const char*> tempPreOpenMapDirs;
+        std::list<std::string> tempEnvVarsStringList;
+        std::vector<const char*> tempEnvVars;
+        std::vector<const char*> tempArgv;
+        for (const auto& p : pInst->config.preOpenDirs) {
+            tempPreOpenHostDirs.push_back(p.second.c_str());
+            tempPreOpenMapDirs.push_back(p.first.c_str());
+        }
+        for (const auto& p : pInst->config.envVars) {
+            tempEnvVarsStringList.emplace_back(std::move(p.first + '=' + p.second));
+            tempEnvVars.push_back(tempEnvVarsStringList.back().c_str());
+        }
+        for (const auto& p : pInst->config.args)
+            tempArgv.push_back(p.c_str());
+        int newStdinFD = -1;
+        int newStdOutFD = -1;
+        int newStdErrFD = -1;
+#ifndef _WIN32
+        for (const auto& p : {
+                std::make_pair(&newStdinFD, fileno(stdin)),
+                std::make_pair(&newStdOutFD, fileno(stdout)),
+                std::make_pair(&newStdErrFD, fileno(stderr)),
+        }) {
+            *p.first = -1;
+            if (p.second != -1 && (*p.first = dup(p.second)) != -1)
+                *p.first = uv_open_osfhandle(*p.first);
+        }
+#else
+#error "Duplicating file handler of stdin, stdout and stderr is not supported for Win32"
+#endif
+
         std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
-        wasm_runtime_set_wasi_args_ex(pInst->pModule->module, pInst->pRuntimeData->preOpenHostDirs.data(), pInst->pRuntimeData->preOpenHostDirs.size(),
-                                      pInst->pRuntimeData->preOpenMapDirs.data(), pInst->pRuntimeData->preOpenMapDirs.size(),
-                                      pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(),
-                                      const_cast<char**>(pInst->pRuntimeData->argv.data()), pInst->pRuntimeData->argv.size(),
-                                      pInst->pRuntimeData->newStdinFD, pInst->pRuntimeData->newStdOutFD, pInst->pRuntimeData->newStdErrFD);
-        wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
+        wasm_runtime_set_wasi_args_ex(pInst->pModule->module, tempPreOpenHostDirs.data(), tempPreOpenHostDirs.size(),
+                                      tempPreOpenMapDirs.data(), tempPreOpenMapDirs.size(),
+                                      tempEnvVars.data(), tempEnvVars.size(),
+                                      const_cast<char**>(tempArgv.data()), tempArgv.size(),
+                                      newStdinFD, newStdOutFD, newStdErrFD);
+        wasm_runtime_set_max_thread_num(pInst->config.maxThreadNum);
         // No app heap size for each module
-        pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
-                                                   WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
-        if (!pInst->instance)
+        pInst->wasmInstance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
+                                                       WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
+        if (!pInst->wasmInstance)
             return -1;
-        wasm_runtime_set_custom_data(pInst->instance, pInst);
+        pInst->wasmMainExecEnv = wasm_runtime_get_exec_env_singleton(pInst->wasmInstance);
+        wasm_runtime_set_custom_data(pInst->wasmInstance, pInst);
     }
-    if (!wasm_application_execute_main(pInst->instance, 0, nullptr)) {
-        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->instance));
+    if (!wasm_application_execute_main(pInst->wasmInstance, 0, nullptr)) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmInstance));
         return -1;
     }
     return 0;

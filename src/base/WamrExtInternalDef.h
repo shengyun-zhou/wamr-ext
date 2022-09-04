@@ -21,28 +21,14 @@ struct WamrExtModule {
 };
 
 struct WamrExtInstance {
-    struct InstRuntimeData {
-        std::vector<const char*> preOpenHostDirs;
-        std::vector<const char*> preOpenMapDirs;
-        std::list<std::string> envVarsStringList;
-        std::vector<const char*> envVars;
-        std::vector<const char*> argv;
-        int newStdinFD{-1};
-        int newStdOutFD{-1};
-        int newStdErrFD{-1};
-
-        InstRuntimeData(const WamrExtInstanceConfig& config);
-        InstRuntimeData(const InstRuntimeData&) = delete;
-        InstRuntimeData& operator=(const InstRuntimeData&) = delete;
-    };
-
+    std::mutex instanceLock;
     WamrExtModule* pModule;
-    WamrExtInstanceConfig instConfig;
-    wasm_module_inst_t instance{nullptr};
-    std::shared_ptr<InstRuntimeData> pRuntimeData;
+    WamrExtInstanceConfig config;
+    wasm_module_inst_t wasmInstance{nullptr};
+    wasm_exec_env_t wasmMainExecEnv{nullptr};
 
     explicit WamrExtInstance(WamrExtModule* _pModule) : pModule(_pModule),
-        instConfig(_pModule->instDefaultConf) {}
+                                                        config(_pModule->instDefaultConf) {}
     WamrExtInstance(const WamrExtInstance&) = delete;
     WamrExtInstance& operator=(const WamrExtInstance&) = delete;
 };
