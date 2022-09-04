@@ -33,9 +33,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#define INVALID_FD INVALID_HANDLE_VALUE
 #else
 #include <unistd.h>
-#define INVALID_FD (-1)
 #define INVALID_SOCKET (-1)
 #endif

@@ -129,13 +129,14 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                                       pInst->pRuntimeData->preOpenMapDirs.data(), pInst->pRuntimeData->preOpenMapDirs.size(),
                                       pInst->pRuntimeData->envVars.data(), pInst->pRuntimeData->envVars.size(),
                                       const_cast<char**>(pInst->pRuntimeData->argv.data()), pInst->pRuntimeData->argv.size(),
-                                      fileno(stdin), fileno(stdout), fileno(stderr));
+                                      pInst->pRuntimeData->newStdinFD, pInst->pRuntimeData->newStdOutFD, pInst->pRuntimeData->newStdErrFD);
         wasm_runtime_set_max_thread_num(pInst->instConfig.maxThreadNum);
         // No app heap size for each module
         pInst->instance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
                                                    WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
         if (!pInst->instance)
             return -1;
+        wasm_runtime_set_custom_data(pInst->instance, pInst);
     }
     if (!wasm_application_execute_main(pInst->instance, 0, nullptr)) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->instance));

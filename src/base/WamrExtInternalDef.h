@@ -27,6 +27,9 @@ struct WamrExtInstance {
         std::list<std::string> envVarsStringList;
         std::vector<const char*> envVars;
         std::vector<const char*> argv;
+        int newStdinFD{-1};
+        int newStdOutFD{-1};
+        int newStdErrFD{-1};
 
         InstRuntimeData(const WamrExtInstanceConfig& config);
         InstRuntimeData(const InstRuntimeData&) = delete;
