@@ -1,6 +1,7 @@
 #include <argparse/argparse.hpp>
 #include <wamr_ext_api.h>
 #include <cstring>
+#include <filesystem>
 
 int main(int argc, char** argv) {
     argparse::ArgumentParser ap("wamr_ext_miniapp");
@@ -25,7 +26,7 @@ int main(int argc, char** argv) {
 
     wamr_ext_init();
     wamr_ext_module_t module;
-    int err = wamr_ext_module_load_by_file(&module, wasmAppFile.c_str());
+    int err = wamr_ext_module_load_by_file(&module, std::filesystem::path(wasmAppFile).stem().string().c_str(), wasmAppFile.c_str());
     if (err != 0) {
         printf("Failed to load wasm app %s: %s\n", wasmAppFile.c_str(), wamr_ext_strerror(err));
         return err;

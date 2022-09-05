@@ -6,6 +6,7 @@
 #include "../wamr_ext_lib/WasiSocketExt.h"
 
 namespace WAMR_EXT_NS {
+    std::mutex gWasmLock;
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
         if (!value)
             return EINVAL;
@@ -43,16 +44,21 @@ namespace WAMR_EXT_NS {
         return ret;
     }
 
-    int32_t WamrExtModuleLoad(wamr_ext_module_t* module, const std::shared_ptr<uint8_t>& pModuleBuf, uint32_t len) {
+    int32_t WamrExtModuleLoad(wamr_ext_module_t* module, const char* moduleName, const std::shared_ptr<uint8_t>& pModuleBuf, uint32_t len) {
+        std::lock_guard<std::mutex> _al(gWasmLock);
         auto* wasmModule = wasm_runtime_load(pModuleBuf.get(), len, gLastErrorStr, sizeof(gLastErrorStr));
         if (!wasmModule)
             return -1;
-        *module = new WamrExtModule(pModuleBuf);
-        (*module)->module = wasmModule;
-        return 0;
+        do {
+            if (!wasm_runtime_register_module(moduleName, wasmModule, gLastErrorStr, sizeof(gLastErrorStr)))
+                break;
+            *module = new WamrExtModule(pModuleBuf);
+            (*module)->module = wasmModule;
+            return 0;
+        } while (false);
+        wasm_runtime_unload(wasmModule);
+        return -1;
     }
-
-    std::mutex gInstInitializationLock;
 }
 
 int32_t wamr_ext_init() {
@@ -67,7 +73,7 @@ int32_t wamr_ext_init() {
 
 #define WASM_MAX_MODULE_FILE_SIZE (512 * 1024 * 1024)   // 512MB
 
-int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* file_path) {
+int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* module_name, const char* file_path) {
     auto* f = fopen(file_path, "rb");
     if (!f)
         return errno;
@@ -84,19 +90,19 @@ int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* file
         fread(pFileBuf.get(), 1, fileSize, f);
         fclose(f);
         f = nullptr;
-        ret = WAMR_EXT_NS::WamrExtModuleLoad(module, pFileBuf, fileSize);
+        ret = WAMR_EXT_NS::WamrExtModuleLoad(module, module_name, pFileBuf, fileSize);
     } while (false);
     if (f)
         fclose(f);
     return ret;
 }
 
-int32_t wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, const uint8_t* buf, uint32_t len) {
+int32_t wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, const char* module_name, const uint8_t* buf, uint32_t len) {
     if (!buf || len <= 0 || !module)
         return EINVAL;
     std::shared_ptr<uint8_t> pNewBuf(new uint8_t[len], std::default_delete<uint8_t[]>());
     memcpy(pNewBuf.get(), buf, len);
-    return WAMR_EXT_NS::WamrExtModuleLoad(module, pNewBuf, len);
+    return WAMR_EXT_NS::WamrExtModuleLoad(module, module_name, pNewBuf, len);
 }
 
 int32_t wamr_ext_module_set_inst_default_opt(wamr_ext_module_t* module, enum WamrExtInstanceOpt opt, const void* value) {
@@ -115,6 +121,7 @@ int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t*
 int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value) {
     if (!inst || !(*inst))
         return EINVAL;
+    std::lock_guard<std::mutex> _al((*inst)->instanceLock);
     return WAMR_EXT_NS::WamrExtSetInstanceOpt((*inst)->config, opt, value);
 }
 
@@ -155,7 +162,7 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
 #error "Duplicating file handler of stdin, stdout and stderr is not supported for Win32"
 #endif
 
-        std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gInstInitializationLock);
+        std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gWasmLock);
         wasm_runtime_set_wasi_args_ex(pInst->pModule->module, tempPreOpenHostDirs.data(), tempPreOpenHostDirs.size(),
                                       tempPreOpenMapDirs.data(), tempPreOpenMapDirs.size(),
                                       tempEnvVars.data(), tempEnvVars.size(),
@@ -167,7 +174,8 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                                                        WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
         if (!pInst->wasmInstance)
             return -1;
-        pInst->wasmMainExecEnv = wasm_runtime_get_exec_env_singleton(pInst->wasmInstance);
+        // Create main executing environment
+        wasm_runtime_get_exec_env_singleton(pInst->wasmInstance);
         wasm_runtime_set_custom_data(pInst->wasmInstance, pInst);
     }
     if (!wasm_application_execute_main(pInst->wasmInstance, 0, nullptr)) {

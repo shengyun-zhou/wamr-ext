@@ -26,7 +26,6 @@ struct WamrExtInstance {
     WamrExtModule* pModule;
     WamrExtInstanceConfig config;
     wasm_module_inst_t wasmInstance{nullptr};
-    wasm_exec_env_t wasmMainExecEnv{nullptr};
     WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
 
     explicit WamrExtInstance(WamrExtModule* _pModule) : pModule(_pModule),
