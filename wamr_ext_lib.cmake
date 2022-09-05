@@ -35,7 +35,7 @@ set(WAMR_EXT_INCLUDE_DIRS
 add_library(wamr_ext_obj OBJECT
         ${WAMR_EXT_ROOT_DIR}/src/base/Utility.cpp
         ${WAMR_EXT_ROOT_DIR}/src/base/FSUtility.cpp
-        ${WAMR_EXT_ROOT_DIR}/src/base/WamrExtInternalDef.cpp
+        ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WamrExtInternalDef.cpp
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiPthreadExt.cpp
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiWamrExt.cpp
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiFSExt.cpp

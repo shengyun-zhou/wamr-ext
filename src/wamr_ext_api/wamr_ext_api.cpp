@@ -1,5 +1,5 @@
 #include <wamr_ext_api.h>
-#include "../base/WamrExtInternalDef.h"
+#include "../wamr_ext_lib/WamrExtInternalDef.h"
 #include "../wamr_ext_lib/WasiPthreadExt.h"
 #include "../wamr_ext_lib/WasiWamrExt.h"
 #include "../wamr_ext_lib/WasiFSExt.h"

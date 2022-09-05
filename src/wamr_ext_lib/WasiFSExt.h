@@ -1,5 +1,5 @@
 #pragma once
-#include "../base/WamrExtInternalDef.h"
+#include "WamrExtInternalDef.h"
 
 namespace WAMR_EXT_NS {
     class WasiFSExt {

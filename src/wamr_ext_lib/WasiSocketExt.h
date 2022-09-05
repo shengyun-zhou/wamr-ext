@@ -1,6 +1,6 @@
 #pragma once
 #include "../base/Utility.h"
-#include "../base/WamrExtInternalDef.h"
+#include "WamrExtInternalDef.h"
 extern "C" {
 #include <fd_table.h>
 #include <uv_mapping.h>

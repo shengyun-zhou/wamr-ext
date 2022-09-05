@@ -1,5 +1,6 @@
 #pragma once
-#include "BaseDef.h"
+#include "../base/BaseDef.h"
+#include "WasiPthreadExt.h"
 
 struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
@@ -26,6 +27,7 @@ struct WamrExtInstance {
     WamrExtInstanceConfig config;
     wasm_module_inst_t wasmInstance{nullptr};
     wasm_exec_env_t wasmMainExecEnv{nullptr};
+    WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
 
     explicit WamrExtInstance(WamrExtModule* _pModule) : pModule(_pModule),
                                                         config(_pModule->instDefaultConf) {}
