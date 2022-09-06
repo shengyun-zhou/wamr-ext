@@ -1,15 +1,13 @@
 #include "Utility.h"
 #ifdef __linux__
 #include <syscall.h>
+#include <sys/prctl.h>
 #elif defined(__CYGWIN__)
 #include <windows.h>
 #endif
 #ifndef _WIN32
 #include <pthread.h>
 #endif
-extern "C" {
-#include <uv_mapping.h>
-}
 
 namespace WAMR_EXT_NS {
     uint32_t Utility::GetProcessID() {
@@ -32,6 +30,31 @@ namespace WAMR_EXT_NS {
 #else
         return uintptr_t(pthread_self());
 #endif
+    }
+
+    void Utility::SetCurrentThreadName(const char *name) {
+#if defined(__APPLE__)
+        pthread_setname_np(name);
+#elif defined(__CYGWIN__) || defined(__FreeBSD__) || defined(_WIN32)
+        pthread_setname_np(pthread_self(), name);
+#elif defined(__linux__)
+        prctl(PR_SET_NAME, name);
+#endif
+    }
+
+    std::string Utility::GetCurrentThreadName() {
+        char tempThreadName[64] = {0};
+#ifdef __linux__
+        if (prctl(PR_GET_NAME, tempThreadName) == -1)
+            return "";
+#elif defined(_WIN32) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__FreeBSD__)
+        int err = pthread_getname_np(pthread_self(), tempThreadName, sizeof(tempThreadName));
+        if (err != 0)
+            return "";
+#else
+        return "";
+#endif
+        return tempThreadName;
     }
 
     uvwasi_errno_t Utility::ConvertErrnoToWasiErrno(int error) {

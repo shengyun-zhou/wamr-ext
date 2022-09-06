@@ -1,8 +1,5 @@
 #include "WasiPthreadExt.h"
 #include "WamrExtInternalDef.h"
-#ifdef __linux__
-#include <sys/prctl.h>
-#endif
 
 namespace WAMR_EXT_NS {
     void WasiPthreadExt::Init() {
@@ -397,31 +394,12 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t WasiPthreadExt::PthreadSetName(wasm_exec_env_t pExecEnv, char *name) {
-#if defined(__WINPTHREADS_VERSION)
-        pthread_setname_np(pthread_self(), name);
-#elif defined(__APPLE__)
-        pthread_setname_np(name);
-#elif defined(__CYGWIN__) || defined(__FreeBSD__)
-        pthread_setname_np(pthread_self(), name);
-#elif defined(__linux__)
-        prctl(PR_SET_NAME, name);
-#endif
+        Utility::SetCurrentThreadName(name);
         return 0;
     }
 
     int32_t WasiPthreadExt::PthreadGetName(wasm_exec_env_t pExecEnv, char *nameBuf, uint32_t bufLen) {
-        char tempThreadName[64] = {0};
-#ifdef __linux__
-        if (prctl(PR_GET_NAME, tempThreadName) == -1)
-            return Utility::ConvertErrnoToWasiErrno(errno);
-#elif defined(__WINPTHREADS_VERSION) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__FreeBSD__)
-        int err = pthread_getname_np(pthread_self(), tempThreadName, sizeof(tempThreadName));
-        if (err != 0)
-            return Utility::ConvertErrnoToWasiErrno(err);
-#else
-        return UVWASI_ENOSYS;
-#endif
-        snprintf(nameBuf, bufLen, "%s", tempThreadName);
+        snprintf(nameBuf, bufLen, "%s", Utility::GetCurrentThreadName().c_str());
         return 0;
     }
 
