@@ -1,7 +1,9 @@
 #include "WamrExtInternalDef.h"
 #include "../base/FSUtility.h"
 #include "uv.h"
+extern "C" {
 #include <fd_table.h>
+}
 
 WamrExtInstanceConfig::WamrExtInstanceConfig() {
     auto tempDirPath = WAMR_EXT_NS::FSUtility::GetTempDir();

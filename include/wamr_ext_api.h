@@ -46,6 +46,7 @@ WAMR_EXT_API int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ex
 WAMR_EXT_API int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value);
 WAMR_EXT_API int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst);
 WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst, int32_t* ret_value);
+WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst);
 
 WAMR_EXT_API const char* wamr_ext_strerror(int32_t err);
 

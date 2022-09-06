@@ -232,6 +232,26 @@ WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst,
     return 0;
 }
 
+WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst) {
+    if (!inst || !(*inst))
+        return EINVAL;
+    auto pInst = *inst;
+    {
+        std::lock_guard<std::mutex> _al(pInst->execFuncLock);
+        for (const auto &p: pInst->wasmExecEnvMap) {
+            auto wasmInst = get_module_inst(p.second);
+            wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(wasmInst, "__wasm_call_dtors", "()");
+            if (wasmFuncInst) {
+                wasm_runtime_call_wasm_a(p.second, wasmFuncInst, 0, nullptr, 0, nullptr);
+                wasm_runtime_clear_exception(wasmInst);
+            }
+        }
+    }
+    delete pInst;
+    *inst = nullptr;
+    return 0;
+}
+
 const char* wamr_ext_strerror(int32_t err) {
     if (err >= 0)
         return strerror(err);
