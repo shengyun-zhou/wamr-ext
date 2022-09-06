@@ -841,7 +841,7 @@ namespace WAMR_EXT_NS {
 #endif
         host_pollfd* pollArr = static_cast<host_pollfd*>(alloca(sizeof(host_pollfd) * appSubCount));
         auto* pFDTable = pUVWasi->fds;
-        uv_rwlock_wrlock(&pFDTable->rwlock);
+        uvwasi_fd_table_lock(pFDTable);
         for (uint32_t i = 0; i < appSubCount; i++) {
             const auto& appSub = pAppSub[i];
             if (appSub.type == UVWASI_EVENTTYPE_CLOCK) {
@@ -882,7 +882,7 @@ namespace WAMR_EXT_NS {
             curHostPollFD.fd = INVALID_SOCKET;
             curHostPollFD.events = curHostPollFD.revents = 0;
         }
-        uv_rwlock_wrunlock(&pFDTable->rwlock);
+        uvwasi_fd_table_unlock(pFDTable);
         if (bSleepOnly) {
             if (!pTimeoutSub)
                 return UVWASI_EINVAL;

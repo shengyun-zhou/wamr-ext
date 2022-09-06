@@ -55,8 +55,14 @@ int main(int argc, char** argv) {
     wamr_ext_instance_create(&module, &inst);
     wamr_ext_instance_set_opt(&inst, WAMR_EXT_INST_OPT_ARG, mainArgv);
     err = wamr_ext_instance_start(&inst);
-    if (err != 0)
+    if (err != 0) {
         printf("Failed to start wasm app: %s\n", wamr_ext_strerror(err));
+        return err;
+    }
+    int32_t mainRetVal = 233;
+    err = wamr_ext_instance_exec_main_func(&inst, &mainRetVal);
+    if (err != 0)
+        printf("Failed to execute main() of wasm app: %s\n", wamr_ext_strerror(err));
     delete[] mainArgv;
-    return err;
+    return err == 0 ? mainRetVal : err;
 }

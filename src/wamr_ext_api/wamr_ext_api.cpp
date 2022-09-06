@@ -4,6 +4,8 @@
 #include "../wamr_ext_lib/WasiWamrExt.h"
 #include "../wamr_ext_lib/WasiFSExt.h"
 #include "../wamr_ext_lib/WasiSocketExt.h"
+#include <wasm_runtime.h>
+#include <aot/aot_runtime.h>
 
 namespace WAMR_EXT_NS {
     std::mutex gWasmLock;
@@ -52,8 +54,7 @@ namespace WAMR_EXT_NS {
         do {
             if (!wasm_runtime_register_module(moduleName, wasmModule, gLastErrorStr, sizeof(gLastErrorStr)))
                 break;
-            *module = new WamrExtModule(pModuleBuf);
-            (*module)->module = wasmModule;
+            *module = new WamrExtModule(pModuleBuf, wasmModule, moduleName);
             return 0;
         } while (false);
         wasm_runtime_unload(wasmModule);
@@ -163,25 +164,71 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
 #endif
 
         std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gWasmLock);
-        wasm_runtime_set_wasi_args_ex(pInst->pModule->module, tempPreOpenHostDirs.data(), tempPreOpenHostDirs.size(),
+        wasm_runtime_set_wasi_args_ex(pInst->pMainModule->wasmModule, tempPreOpenHostDirs.data(), tempPreOpenHostDirs.size(),
                                       tempPreOpenMapDirs.data(), tempPreOpenMapDirs.size(),
                                       tempEnvVars.data(), tempEnvVars.size(),
                                       const_cast<char**>(tempArgv.data()), tempArgv.size(),
                                       newStdinFD, newStdOutFD, newStdErrFD);
         wasm_runtime_set_max_thread_num(pInst->config.maxThreadNum);
         // No app heap size for each module
-        pInst->wasmInstance = wasm_runtime_instantiate(pInst->pModule->module, 64 * 1024, 0,
-                                                       WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
-        if (!pInst->wasmInstance)
+        const int STACK_SIZE = 64 * 1024;
+        pInst->wasmMainInstance = wasm_runtime_instantiate(pInst->pMainModule->wasmModule, STACK_SIZE, 0,
+                                                           WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
+        if (!pInst->wasmMainInstance)
             return -1;
-        // Create main executing environment
-        wasm_runtime_get_exec_env_singleton(pInst->wasmInstance);
-        wasm_runtime_set_custom_data(pInst->wasmInstance, pInst);
+        auto wasmMainExecEnv = wasm_runtime_create_exec_env(pInst->wasmMainInstance, STACK_SIZE);
+        if (!wasmMainExecEnv) {
+            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Failed to create exec env for main module %s", pInst->pMainModule->moduleName.c_str());
+            return -1;
+        }
+        pInst->wasmExecEnvMap[pInst->pMainModule->moduleName] = wasmMainExecEnv;
+        if (pInst->pMainModule->wasmModule->module_type == Wasm_Module_Bytecode) {
+            auto* pByteCodeInst = (WASMModuleInstance*)pInst->pMainModule->wasmModule;
+            for (auto* pSubModuleNode = (WASMSubModInstNode*)bh_list_first_elem(pByteCodeInst->sub_module_inst_list); pSubModuleNode;
+                 pSubModuleNode = (WASMSubModInstNode*)bh_list_elem_next(pSubModuleNode)) {
+                wasmMainExecEnv = wasm_runtime_create_exec_env((wasm_module_inst_t)pSubModuleNode->module_inst, STACK_SIZE);
+                if (!wasmMainExecEnv) {
+                    snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Failed to create exec env for sub module %s", pSubModuleNode->module_name);
+                    return -1;
+                }
+                pInst->wasmExecEnvMap[pSubModuleNode->module_name] = wasmMainExecEnv;
+            }
+        }
+        for (const auto& p : pInst->wasmExecEnvMap)
+            wasm_runtime_set_custom_data(get_module_inst(p.second), pInst);
     }
-    if (!wasm_application_execute_main(pInst->wasmInstance, 0, nullptr)) {
-        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmInstance));
+    std::lock_guard<std::mutex> _al(pInst->execFuncLock);
+    wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "_initialize", "()");
+    if (!wasmFuncInst) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot find function _initialize() in main module %s\n", pInst->pMainModule->moduleName.c_str());
         return -1;
     }
+    if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 0, nullptr, 0, nullptr)) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
+        wasm_runtime_clear_exception(pInst->wasmMainInstance);
+        return -1;
+    }
+    return 0;
+}
+
+WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst, int32_t* ret_value) {
+    if (!inst || !(*inst))
+        return EINVAL;
+    auto pInst = *inst;
+    std::lock_guard<std::mutex> _al(pInst->execFuncLock);
+    wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "__main_void", "()i");
+    if (!wasmFuncInst) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot find function __main_void() in main module %s\n", pInst->pMainModule->moduleName.c_str());
+        return -1;
+    }
+    wasm_val_t wasmRetVal;
+    if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 1, &wasmRetVal, 0, nullptr)) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
+        wasm_runtime_clear_exception(pInst->wasmMainInstance);
+        return -1;
+    }
+    if (ret_value)
+        *ret_value = wasmRetVal.of.i32;
     return 0;
 }
 

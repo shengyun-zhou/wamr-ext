@@ -13,23 +13,28 @@ struct WamrExtInstanceConfig {
 
 struct WamrExtModule {
     std::shared_ptr<uint8_t> pModuleBuf;
-    wasm_module_t module{nullptr};
+    wasm_module_t wasmModule{nullptr};
+    std::string moduleName;
     WamrExtInstanceConfig instDefaultConf;
 
-    explicit WamrExtModule(const std::shared_ptr<uint8_t>& pBuf) : pModuleBuf(pBuf) {}
+    explicit WamrExtModule(const std::shared_ptr<uint8_t>& pBuf, wasm_module_t _wasmModule, const char* name) :
+        pModuleBuf(pBuf), wasmModule(_wasmModule), moduleName(name) {}
     WamrExtModule(const WamrExtModule&) = delete;
     WamrExtModule& operator=(const WamrExtModule&) = delete;
 };
 
 struct WamrExtInstance {
     std::mutex instanceLock;
-    WamrExtModule* pModule;
+    WamrExtModule* pMainModule;
     WamrExtInstanceConfig config;
-    wasm_module_inst_t wasmInstance{nullptr};
+    wasm_module_inst_t wasmMainInstance{nullptr};
+    std::mutex execFuncLock;
+    std::unordered_map<std::string, wasm_exec_env_t> wasmExecEnvMap;
     WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
 
-    explicit WamrExtInstance(WamrExtModule* _pModule) : pModule(_pModule),
+    explicit WamrExtInstance(WamrExtModule* _pModule) : pMainModule(_pModule),
                                                         config(_pModule->instDefaultConf) {}
+    ~WamrExtInstance();
     WamrExtInstance(const WamrExtInstance&) = delete;
     WamrExtInstance& operator=(const WamrExtInstance&) = delete;
 };
