@@ -6,9 +6,13 @@
 #include "../wamr_ext_lib/WasiSocketExt.h"
 #include <wasm_runtime.h>
 #include <aot/aot_runtime.h>
+#include "../base/LoopThread.h"
 
 namespace WAMR_EXT_NS {
     std::mutex gWasmLock;
+    LoopThread gLoopThread("wamr_ext_loop");
+    std::unordered_map<wasi::wamr_ext_syscall_id, std::shared_ptr<ExtSyscallBase>> gExtSyscallMap;
+
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
         if (!value)
             return EINVAL;
@@ -60,15 +64,34 @@ namespace WAMR_EXT_NS {
         wasm_runtime_unload(wasmModule);
         return -1;
     }
+
+    void RegisterExtSyscall(wasi::wamr_ext_syscall_id syscallID, const std::shared_ptr<ExtSyscallBase>& pSyscallImpl) {
+        gExtSyscallMap[syscallID] = pSyscallImpl;
+    }
+
+    int32_t WasiExtSyscall(wasm_exec_env_t pExecEnv, uint32_t syscallID, uint32_t argc, wasi::wamr_ext_syscall_arg* argv) {
+        auto it = gExtSyscallMap.find((wasi::wamr_ext_syscall_id)syscallID);
+        if (it == gExtSyscallMap.end()) {
+            assert(false);
+            return UVWASI_ENOSYS;
+        }
+        return it->second->Invoke(pExecEnv, argc, argv);
+    }
 }
 
 int32_t wamr_ext_init() {
     if (!wasm_runtime_init())
         return -1;
+    WAMR_EXT_NS::gExtSyscallMap.reserve(100);
+    static NativeSymbol nativeSymbols[] = {
+        {"syscall", (void*)WAMR_EXT_NS::WasiExtSyscall, "(ii*)i"},
+    };
+    wasm_runtime_register_natives("wamr_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
     WAMR_EXT_NS::WasiPthreadExt::Init();
     WAMR_EXT_NS::WasiWamrExt::Init();
     WAMR_EXT_NS::WasiFSExt::Init();
     WAMR_EXT_NS::WasiSocketExt::Init();
+    WAMR_EXT_NS::gLoopThread.Start();
     return 0;
 }
 
@@ -182,8 +205,8 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
             return -1;
         }
         pInst->wasmExecEnvMap[pInst->pMainModule->moduleName] = wasmMainExecEnv;
-        if (pInst->pMainModule->wasmModule->module_type == Wasm_Module_Bytecode) {
-            auto* pByteCodeInst = (WASMModuleInstance*)pInst->pMainModule->wasmModule;
+        if (pInst->wasmMainInstance->module_type == Wasm_Module_Bytecode) {
+            auto* pByteCodeInst = (WASMModuleInstance*)pInst->wasmMainInstance;
             for (auto* pSubModuleNode = (WASMSubModInstNode*)bh_list_first_elem(pByteCodeInst->sub_module_inst_list); pSubModuleNode;
                  pSubModuleNode = (WASMSubModInstNode*)bh_list_elem_next(pSubModuleNode)) {
                 wasmMainExecEnv = wasm_runtime_create_exec_env((wasm_module_inst_t)pSubModuleNode->module_inst, STACK_SIZE);

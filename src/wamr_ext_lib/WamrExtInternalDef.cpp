@@ -45,4 +45,49 @@ WamrExtInstance::~WamrExtInstance() {
 
 namespace WAMR_EXT_NS {
     thread_local char gLastErrorStr[200] = {0};
+
+    int32_t ExtSyscallBase::Invoke(wasm_exec_env_t pExecEnv, uint32_t argc, wasi::wamr_ext_syscall_arg *appArgv) {
+        if (argc < m_argSig.length()) {
+            assert(false);
+            return UVWASI_ENOSYS;
+        }
+        assert(argc == m_argSig.length());
+        auto wasmInstance = get_module_inst(pExecEnv);
+        for (size_t i = 0; i < m_argSig.length(); i++) {
+            char c = m_argSig[i];
+            if (c == '*') {
+                void* p = wasm_runtime_addr_app_to_native(wasmInstance, appArgv[i].app_pointer);
+                if (!p) {
+                    assert(false);
+                    return UVWASI_EFAULT;
+                }
+                appArgv[i].native_pointer = p;
+            }
+        }
+        return DoSyscall(pExecEnv, appArgv);
+    }
+
+    int32_t ExtSyscall_P::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32(*)(wasm_exec_env_t, void*)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer);
+    }
+
+    int32_t ExtSyscall_P_U32::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32(*)(wasm_exec_env_t, void*, uint32_t)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer, appArgv[1].u32);
+    }
+
+    int32_t ExtSyscall_P_U64::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32(*)(wasm_exec_env_t, void*, uint64_t)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer, appArgv[1].u64);
+    }
+
+    int32_t ExtSyscall_P_P::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32(*)(wasm_exec_env_t, void*, void*)>(m_pFunc)(
+                pExecEnv, appArgv[0].native_pointer, appArgv[1].native_pointer
+        );
+    }
+
+    int32_t ExtSyscall_P_P_U64::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32(*)(wasm_exec_env_t, void*, void*, uint64_t)>(m_pFunc)(
+                pExecEnv, appArgv[0].native_pointer, appArgv[1].native_pointer, appArgv[2].u64
+        );
+    }
 };
