@@ -50,8 +50,21 @@ namespace WAMR_EXT_NS {
         return ret;
     }
 
+    int32_t WamrExtCheckNewModuleName(const char* moduleName) {
+        if (!moduleName || !moduleName[0] || wasm_runtime_is_built_in_module(moduleName) ||
+            strcmp(moduleName, "wamr_ext") == 0) {
+            return EINVAL;
+        }
+        if (wasm_runtime_is_module_registered(moduleName))
+            return EEXIST;
+        return 0;
+    }
+
     int32_t WamrExtModuleLoad(wamr_ext_module_t* module, const char* moduleName, const std::shared_ptr<uint8_t>& pModuleBuf, uint32_t len) {
         std::lock_guard<std::mutex> _al(gWasmLock);
+        int32_t err = WamrExtCheckNewModuleName(moduleName);
+        if (err != 0)
+            return err;
         auto* wasmModule = wasm_runtime_load(pModuleBuf.get(), len, gLastErrorStr, sizeof(gLastErrorStr));
         if (!wasmModule)
             return -1;
@@ -104,6 +117,9 @@ int32_t wamr_ext_init() {
 #define WASM_MAX_MODULE_FILE_SIZE (512 * 1024 * 1024)   // 512MB
 
 int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* module_name, const char* file_path) {
+    int32_t err = WAMR_EXT_NS::WamrExtCheckNewModuleName(module_name);
+    if (err != 0)
+        return err;
     auto* f = fopen(file_path, "rb");
     if (!f)
         return errno;
