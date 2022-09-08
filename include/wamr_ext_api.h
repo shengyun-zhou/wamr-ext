@@ -31,11 +31,18 @@ enum WamrExtInstanceOpt {
     WAMR_EXT_INST_OPT_ADD_ENV_VAR = 3,
     // Set arguments that will be passed to main(), value type: char**(ends with NULL)
     WAMR_EXT_INST_OPT_ARG = 4,
+    // Set callback when WAsm app raises exception during running(e.g. out of memory access), value type: WamrExtInstanceExceptionCB*
+    WAMR_EXT_INST_OPT_EXCEPTION_CALLBACK = 5,
 };
 
 struct WamrExtKeyValueSS {
     const char* k;
     const char* v;
+};
+
+struct WamrExtInstanceExceptionCB {
+    void(*func)(wamr_ext_instance_t* inst, int32_t err, void* user_data);
+    void* user_data;
 };
 
 WAMR_EXT_API int32_t wamr_ext_init();

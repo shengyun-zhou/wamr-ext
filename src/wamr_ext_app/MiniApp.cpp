@@ -51,6 +51,15 @@ int main(int argc, char** argv) {
         kvss.v = wasmMappedDir.c_str();
         wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_ADD_HOST_DIR, &kvss);
     }
+    {
+        WamrExtInstanceExceptionCB cb;
+        cb.func = [](wamr_ext_instance_t *, int32_t err, void *) {
+            printf("Unexpected app exception: %s\n", wamr_ext_strerror(err));
+            _Exit(err);
+        };
+        cb.user_data = nullptr;
+        wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_EXCEPTION_CALLBACK, &cb);
+    }
     wamr_ext_instance_t inst;
     wamr_ext_instance_create(&module, &inst);
     wamr_ext_instance_set_opt(&inst, WAMR_EXT_INST_OPT_ARG, mainArgv);

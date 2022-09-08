@@ -11,6 +11,7 @@
 namespace WAMR_EXT_NS {
     std::mutex gWasmLock;
     LoopThread gLoopThread("wamr_ext_loop");
+    std::list<std::shared_ptr<WamrExtInstance>> gAllInstanceList;
     std::unordered_map<wasi::wamr_ext_syscall_id, std::shared_ptr<ExtSyscallBase>> gExtSyscallMap;
 
     int32_t WamrExtSetInstanceOpt(WamrExtInstanceConfig& config, WamrExtInstanceOpt opt, const void* value) {
@@ -41,6 +42,10 @@ namespace WAMR_EXT_NS {
                 config.args.clear();
                 for (int i = 0; ((char**)value)[i]; i++)
                     config.args.emplace_back(((char**)value)[i]);
+                break;
+            }
+            case WAMR_EXT_INST_OPT_EXCEPTION_CALLBACK: {
+                config.exceptionCB = *(WamrExtInstanceExceptionCB*)value;
                 break;
             }
             default:
@@ -96,6 +101,52 @@ namespace WAMR_EXT_NS {
         }
         return it->second->Invoke(pExecEnv, argc, argv);
     }
+
+    void LoopCheckInstanceRoutine() {
+        std::unique_lock<std::mutex> globalWasmAL(gWasmLock);
+        if (gAllInstanceList.empty())
+            return;
+        auto instanceListIt = gAllInstanceList.begin();
+        globalWasmAL.unlock();
+        std::shared_ptr<WamrExtInstance> pInst;
+        while (true) {
+            pInst = *instanceListIt;
+            bool bInstDestroyed = false;
+            {
+                std::unique_lock<std::mutex> instAL(pInst->instanceLock);
+                switch (pInst->state) {
+                    case WamrExtInstance::STATE_STARTED: {
+                        const char* exceptionStr = wasm_runtime_get_exception(pInst->wasmMainInstance);
+                        if (exceptionStr && exceptionStr[0]) {
+                            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", exceptionStr);
+                            auto exceptionCB = pInst->config.exceptionCB;
+                            pInst->state = WamrExtInstance::STATE_ENDED;
+                            if (exceptionCB.func) {
+                                instAL.unlock();
+                                exceptionCB.func(pInst->pUserCallbackPointer, -1, exceptionCB.user_data);
+                                instAL.lock();
+                            }
+                        }
+                        break;
+                    }
+                    case WamrExtInstance::STATE_DESTROYED: {
+                        bInstDestroyed = true;
+                        break;
+                    }
+                }
+            }
+            globalWasmAL.lock();
+            if (bInstDestroyed)
+                instanceListIt = gAllInstanceList.erase(instanceListIt);
+            else
+                instanceListIt = std::next(instanceListIt);
+            if (instanceListIt == gAllInstanceList.end()) {
+                globalWasmAL.unlock();
+                break;
+            }
+            globalWasmAL.unlock();
+        }
+    }
 }
 
 int32_t wamr_ext_init() {
@@ -111,6 +162,7 @@ int32_t wamr_ext_init() {
     WAMR_EXT_NS::WasiFSExt::Init();
     WAMR_EXT_NS::WasiSocketExt::Init();
     WAMR_EXT_NS::gLoopThread.Start();
+    WAMR_EXT_NS::gLoopThread.PostTimerTask(WAMR_EXT_NS::LoopCheckInstanceRoutine, 0, 100);
     return 0;
 }
 
@@ -160,22 +212,31 @@ int32_t wamr_ext_module_set_inst_default_opt(wamr_ext_module_t* module, enum Wam
 int32_t wamr_ext_instance_create(wamr_ext_module_t* module, wamr_ext_instance_t* inst) {
     if (!module || !(*module))
         return EINVAL;
-    *inst = new WamrExtInstance(*module);
+    *inst = new WamrExtInstance(*module, inst);
+    std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gWasmLock);
+    WAMR_EXT_NS::gAllInstanceList.emplace_back(*inst);
     return 0;
 }
 
 int32_t wamr_ext_instance_set_opt(wamr_ext_instance_t* inst, enum WamrExtInstanceOpt opt, const void* value) {
     if (!inst || !(*inst))
         return EINVAL;
-    std::lock_guard<std::mutex> _al((*inst)->instanceLock);
-    return WAMR_EXT_NS::WamrExtSetInstanceOpt((*inst)->config, opt, value);
+    auto* pInst = *inst;
+    std::lock_guard<std::mutex> _al(pInst->instanceLock);
+    return WAMR_EXT_NS::WamrExtSetInstanceOpt(pInst->config, opt, value);
 }
 
 int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
     if (!inst || !(*inst))
         return EINVAL;
     auto pInst = *inst;
+    std::lock_guard<std::mutex> _al(pInst->execFuncLock);
     {
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        if (pInst->state != WamrExtInstance::STATE_NEW) {
+            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Instance state error");
+            return -1;
+        }
         std::vector<const char*> tempPreOpenHostDirs;
         std::vector<const char*> tempPreOpenMapDirs;
         std::list<std::string> tempEnvVarsStringList;
@@ -208,7 +269,7 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
 #error "Duplicating file handler of stdin, stdout and stderr is not supported for Win32"
 #endif
 
-        std::lock_guard<std::mutex> _al(WAMR_EXT_NS::gWasmLock);
+        std::lock_guard<std::mutex> wasmAL(WAMR_EXT_NS::gWasmLock);
         wasm_runtime_set_wasi_args_ex(pInst->pMainModule->wasmModule, tempPreOpenHostDirs.data(), tempPreOpenHostDirs.size(),
                                       tempPreOpenMapDirs.data(), tempPreOpenMapDirs.size(),
                                       tempEnvVars.data(), tempEnvVars.size(),
@@ -242,17 +303,21 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
         for (const auto& p : pInst->wasmExecEnvMap)
             wasm_runtime_set_custom_data(get_module_inst(p.second), pInst);
     }
-    std::lock_guard<std::mutex> _al(pInst->execFuncLock);
     wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "_initialize", "()");
     if (!wasmFuncInst) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot find function _initialize() in main module %s\n", pInst->pMainModule->moduleName.c_str());
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        pInst->state = WamrExtInstance::STATE_ENDED;
         return -1;
     }
     if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 0, nullptr, 0, nullptr)) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
-        wasm_runtime_clear_exception(pInst->wasmMainInstance);
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        pInst->state = WamrExtInstance::STATE_ENDED;
         return -1;
     }
+    std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+    pInst->state = WamrExtInstance::STATE_STARTED;
     return 0;
 }
 
@@ -261,6 +326,13 @@ WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst,
         return EINVAL;
     auto pInst = *inst;
     std::lock_guard<std::mutex> _al(pInst->execFuncLock);
+    {
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        if (pInst->state != WamrExtInstance::STATE_STARTED) {
+            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Instance not started");
+            return -1;
+        }
+    }
     wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "__main_void", "()i");
     if (!wasmFuncInst) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot find function __main_void() in main module %s\n", pInst->pMainModule->moduleName.c_str());
@@ -269,7 +341,6 @@ WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst,
     wasm_val_t wasmRetVal;
     if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 1, &wasmRetVal, 0, nullptr)) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
-        wasm_runtime_clear_exception(pInst->wasmMainInstance);
         return -1;
     }
     if (ret_value)
@@ -281,18 +352,49 @@ WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst) {
     if (!inst || !(*inst))
         return EINVAL;
     auto pInst = *inst;
+    bool bRunDtor = false;
+    std::lock_guard<std::mutex> _al(pInst->execFuncLock);
     {
-        std::lock_guard<std::mutex> _al(pInst->execFuncLock);
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        if (pInst->state >= WamrExtInstance::STATE_DESTROYING) {
+            *inst = nullptr;
+            return 0;
+        }
+        bRunDtor = pInst->state == WamrExtInstance::STATE_STARTED;
+        pInst->state = WamrExtInstance::STATE_DESTROYING;
+    }
+    if (bRunDtor) {
         for (const auto &p: pInst->wasmExecEnvMap) {
             auto wasmInst = get_module_inst(p.second);
             wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(wasmInst, "__wasm_call_dtors", "()");
-            if (wasmFuncInst) {
+            if (wasmFuncInst)
                 wasm_runtime_call_wasm_a(p.second, wasmFuncInst, 0, nullptr, 0, nullptr);
-                wasm_runtime_clear_exception(wasmInst);
-            }
         }
     }
-    delete pInst;
+    if (pInst->wasmMainInstance) {
+        // Close all FDs opened by app
+        std::vector<uint32_t> appFDs;
+        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pInst->wasmMainInstance);
+        uvwasi_fd_table_lock(pUVWasi->fds);
+        appFDs.reserve(pUVWasi->fds->size);
+        for (uint32_t i = 0; i < pUVWasi->fds->size; i++) {
+            auto pEntry = pUVWasi->fds->fds[i];
+            if (pEntry)
+                appFDs.push_back(pEntry->id);
+        }
+        uvwasi_fd_table_unlock(pUVWasi->fds);
+        for (auto appFD : appFDs)
+            uvwasi_fd_close(pUVWasi, appFD);
+    }
+    for (const auto& p : pInst->wasmExecEnvMap)
+        wasm_exec_env_destroy(p.second);
+    pInst->wasmExecEnvMap.clear();
+    if (pInst->wasmMainInstance)
+        wasm_runtime_deinstantiate(pInst->wasmMainInstance);
+    pInst->wasmMainInstance = nullptr;
+    std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+    // Mark this instance destroyed first, then destroy finally in the loop thread
+    pInst->state = WamrExtInstance::STATE_DESTROYED;
     *inst = nullptr;
     return 0;
 }

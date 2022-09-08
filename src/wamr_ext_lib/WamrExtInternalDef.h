@@ -1,12 +1,14 @@
 #pragma once
 #include "../base/BaseDef.h"
 #include "WasiPthreadExt.h"
+#include "wamr_ext_api.h"
 
 struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
     std::map<std::string, std::string> preOpenDirs;     // mapped dir -> host dir
     std::map<std::string, std::string> envVars;
     std::vector<std::string> args;
+    WamrExtInstanceExceptionCB exceptionCB{.func = nullptr};
 
     WamrExtInstanceConfig();
 };
@@ -24,7 +26,15 @@ struct WamrExtModule {
 };
 
 struct WamrExtInstance {
+    wamr_ext_instance_t* pUserCallbackPointer;
     std::mutex instanceLock;
+    enum {
+        STATE_NEW,
+        STATE_STARTED,
+        STATE_ENDED,
+        STATE_DESTROYING,
+        STATE_DESTROYED,
+    } state{STATE_NEW};
     WamrExtModule* pMainModule;
     WamrExtInstanceConfig config;
     wasm_module_inst_t wasmMainInstance{nullptr};
@@ -32,9 +42,8 @@ struct WamrExtInstance {
     std::unordered_map<std::string, wasm_exec_env_t> wasmExecEnvMap;
     WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
 
-    explicit WamrExtInstance(WamrExtModule* _pModule) : pMainModule(_pModule),
-                                                        config(_pModule->instDefaultConf) {}
-    ~WamrExtInstance();
+    explicit WamrExtInstance(WamrExtModule* _pModule, wamr_ext_instance_t* _pUserCallbackPointer) :
+        pMainModule(_pModule), config(_pModule->instDefaultConf), pUserCallbackPointer(_pUserCallbackPointer) {}
     WamrExtInstance(const WamrExtInstance&) = delete;
     WamrExtInstance& operator=(const WamrExtInstance&) = delete;
 };
