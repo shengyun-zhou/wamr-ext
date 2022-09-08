@@ -1,4 +1,5 @@
 #include "WasiWamrExt.h"
+#include "WamrExtInternalDef.h"
 #include <wasm_runtime.h>
 #include <wasm_runtime_common.h>
 #include <aot/aot_runtime.h>
@@ -6,10 +7,7 @@
 
 namespace WAMR_EXT_NS {
     void WasiWamrExt::Init() {
-        static NativeSymbol nativeSymbols[] = {
-            {"wamr_ext_sysctl", (void*)WamrExtSysctl, "(***)i", nullptr},
-        };
-        wasm_runtime_register_natives("wamr_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_WAMR_EXT_SYSCTL, std::make_shared<ExtSyscall_P_P_P>((void*)WamrExtSysctl));
     }
 
     int32_t WasiWamrExt::WamrExtSysctl(wasm_exec_env_t pExecEnv, const char *name, void *buf, uint32_t* bufLen) {

@@ -61,8 +61,10 @@ int main(int argc, char** argv) {
     }
     int32_t mainRetVal = 233;
     err = wamr_ext_instance_exec_main_func(&inst, &mainRetVal);
-    if (err != 0)
+    if (err != 0) {
         printf("Failed to execute main() of wasm app: %s\n", wamr_ext_strerror(err));
+        _Exit(err);
+    }
     delete[] mainArgv;
     wamr_ext_instance_destroy(&inst);
     return err == 0 ? mainRetVal : err;

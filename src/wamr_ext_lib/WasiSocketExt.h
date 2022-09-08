@@ -32,12 +32,12 @@ namespace WAMR_EXT_NS {
         static uvwasi_errno_t InsertNewHostSocketFDToTable(wasm_module_inst_t pWasmModuleInst, uv_os_sock_t hostSockFD, uvwasi_filetype_t wasiSockType, int32_t& outAppSockFD);
 
         static int32_t SockOpen(wasm_exec_env_t pExecEnv, int32_t domain, int32_t type, int32_t protocol, int32_t* outAppSockFD);
-        static int32_t SockBind(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppBindAddr);
-        static int32_t SockConnect(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppConnectAddr);
+        static int32_t SockBind(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppBindAddr);
+        static int32_t SockConnect(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppConnectAddr);
         static int32_t SockListen(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t backlog);
-        static int32_t SockAccept(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t* outNewAppSockFD, wasi::wamr_wasi_struct_base* _pAppSockAddr);
-        static int32_t SockGetSockName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppSockAddr);
-        static int32_t SockGetPeerName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppSockAddr);
+        static int32_t SockAccept(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t* outNewAppSockFD, void* _pAppSockAddr);
+        static int32_t SockGetSockName(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppSockAddr);
+        static int32_t SockGetPeerName(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppSockAddr);
         static int32_t SockShutdown(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t appHow);
         static int32_t WasiPollOneOff(wasm_exec_env_t pExecEnv, const uvwasi_subscription_t* pAppSub,
                                       uvwasi_event_t *pAppOutEvent, uint32_t appSubCount, uint32_t *pAppNEvents);
@@ -52,8 +52,8 @@ namespace WAMR_EXT_NS {
         static int32_t SockSetOpt(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t appLevel, int32_t appOptName, const void* appOptBuf, uint32_t appOptBufLen);
 
         static uint32_t MapWasiSockMsgFlags(uint32_t appSockMsgFlags);
-        static int32_t SockRecvMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
-        static int32_t SockSendMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
-        static int32_t SockGetIfAddrs(wasm_exec_env_t pExecEnv, wasi::wamr_wasi_struct_base* _pAppIfAddrsReq);
+        static int32_t SockRecvMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
+        static int32_t SockSendMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppMsgHdr, wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount);
+        static int32_t SockGetIfAddrs(wasm_exec_env_t pExecEnv, void* _pAppIfAddrsReq);
     };
 }

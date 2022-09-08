@@ -77,6 +77,25 @@ namespace WAMR_EXT_NS {
             __EXT_SYSCALL_PTHREAD_RWLOCK_DESTROY = 124,
 
             __EXT_SYSCALL_PTHREAD_HOST_SETNAME = 130,
+
+            // Filesystem ext
+            __EXT_SYSCALL_FD_STATVFS = 200,
+            __EXT_SYSCALL_FD_EXT_FCNTL = 201,
+
+            // Socket ext
+            __EXT_SYSCALL_SOCK_OPEN = 300,
+            __EXT_SYSCALL_SOCK_BIND = 301,
+            __EXT_SYSCALL_SOCK_CONNECT = 302,
+            __EXT_SYSCALL_SOCK_LISTEN = 303,
+            __EXT_SYSCALL_SOCK_ACCEPT = 304,
+            __EXT_SYSCALL_SOCK_GETSOCKNAME = 305,
+            __EXT_SYSCALL_SOCK_GETPEERNAME = 306,
+            __EXT_SYSCALL_SOCK_SHUTDOWN = 307,
+            __EXT_SYSCALL_SOCK_GETSOCKOPT = 308,
+            __EXT_SYSCALL_SOCK_SETSOCKOPT = 309,
+            __EXT_SYSCALL_SOCK_RECVMSG = 310,
+            __EXT_SYSCALL_SOCK_SENDMSG = 311,
+            __EXT_SYSCALL_SOCK_GETIFADDRS = 312,
         };
 
         typedef long long wasi_time_t;
@@ -91,13 +110,6 @@ namespace WAMR_EXT_NS {
             uint32_t app_buf_offset;
             uint32_t buf_len;
         };
-
-        struct wamr_wasi_struct_base {
-            uint16_t struct_ver;
-            uint16_t struct_size;
-        };
-
-#define wamr_wasi_struct_assert(T) static_assert(std::is_base_of<WAMR_EXT_NS::wasi::wamr_wasi_struct_base, T>::value && std::is_trivial<T>::value)
     }
 
     struct ExtSyscallBase {
@@ -139,9 +151,65 @@ namespace WAMR_EXT_NS {
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };
 
+    struct ExtSyscall_U32_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_P(void* pFunc) : ExtSyscallBase("i*", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_U32 : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_U32(void* pFunc) : ExtSyscallBase("ii", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_P_P_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_P_P_P(void* pFunc) : ExtSyscallBase("***", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
     struct ExtSyscall_P_P_U64 : public ExtSyscallBase {
     public:
         ExtSyscall_P_P_U64(void* pFunc) : ExtSyscallBase("**I", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_P_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_P_P(void* pFunc) : ExtSyscallBase("i**", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_U32_U32_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_U32_U32_P(void* pFunc) : ExtSyscallBase("iii*", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_P_P_U32 : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_P_P_U32(void* pFunc) : ExtSyscallBase("i**i", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_U32_U32_P_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_U32_U32_P_P(void* pFunc) : ExtSyscallBase("iii**", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_U32_U32_P_U32 : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_U32_U32_P_U32(void* pFunc) : ExtSyscallBase("iii*i", pFunc) {}
     protected:
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };

@@ -11,7 +11,7 @@
 
 namespace WAMR_EXT_NS {
     namespace wasi {
-        struct alignas(8) wamr_wasi_sockaddr_storage : public wamr_wasi_struct_base {
+        struct alignas(8) wamr_wasi_sockaddr_storage {
             uint16_t family;
             union {
                 struct {
@@ -27,21 +27,20 @@ namespace WAMR_EXT_NS {
                 uint8_t __padding[56];
             } u_addr;
         };
-        wamr_wasi_struct_assert(wamr_wasi_sockaddr_storage);
-        static_assert(sizeof(struct wamr_wasi_sockaddr_storage) == 64);
+        static_assert(std::is_trivial<wamr_wasi_sockaddr_storage>::value && sizeof(struct wamr_wasi_sockaddr_storage) == 64);
 
         struct wasi_linger_t {
             int32_t l_onoff;
             int32_t l_linger;
         };
 
-        struct wamr_wasi_msghdr : public wamr_wasi_struct_base {
+        struct wamr_wasi_msghdr {
             struct wamr_wasi_sockaddr_storage addr;
             uint32_t input_flags;
             uint32_t ret_flags;
             uint64_t ret_data_size;
         };
-        wamr_wasi_struct_assert(wamr_wasi_msghdr);
+        static_assert(std::is_trivial<wamr_wasi_msghdr>::value);
 
 #define WAMR_IF_NAME_MAX_LEN 32
 
@@ -56,31 +55,29 @@ namespace WAMR_EXT_NS {
         };
         static_assert(std::is_trivial<wamr_wasi_ifaddr>::value);
 
-        struct wamr_wasi_ifaddrs_req : public wamr_wasi_struct_base {
+        struct wamr_wasi_ifaddrs_req {
             uint32_t app_func_malloc;
             uint32_t app_ret_ifaddrs_buf;   // Array of wamr_wasi_ifaddr
             uint32_t ret_ifaddr_cnt;
         };
-        wamr_wasi_struct_assert(wamr_wasi_ifaddrs_req);
+        static_assert(std::is_trivial<wamr_wasi_ifaddrs_req>::value);
     }
 
     void WasiSocketExt::Init() {
-        static NativeSymbol nativeSymbols[] = {
-            {"sock_open", (void*)SockOpen, "(iii*)i", nullptr},
-            {"sock_bind", (void*)SockBind, "(i*)i", nullptr},
-            {"sock_connect", (void*)SockConnect, "(i*)i", nullptr},
-            {"sock_listen", (void*)SockListen, "(ii)i", nullptr},
-            {"sock_accept", (void*)SockAccept, "(i**)i", nullptr},
-            {"sock_getsockname", (void*)SockGetSockName, "(i*)i", nullptr},
-            {"sock_getpeername", (void*)SockGetPeerName, "(i*)i", nullptr},
-            {"sock_shutdown", (void*)SockShutdown, "(ii)i", nullptr},
-            {"sock_getopt", (void*)SockGetOpt, "(iii**)i", nullptr},
-            {"sock_setopt", (void*)SockSetOpt, "(iii*i)i", nullptr},
-            {"sock_recvmsg", (void*)SockRecvMsg, "(i**i)i", nullptr},
-            {"sock_sendmsg", (void*)SockSendMsg, "(i**i)i", nullptr},
-            {"sock_getifaddrs", (void*)SockGetIfAddrs, "(*)i", nullptr},
-        };
-        wasm_runtime_register_natives("socket_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_OPEN, std::make_shared<ExtSyscall_U32_U32_U32_P>((void*)SockOpen));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_BIND, std::make_shared<ExtSyscall_U32_P>((void*)SockBind));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_CONNECT, std::make_shared<ExtSyscall_U32_P>((void*)SockConnect));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_LISTEN, std::make_shared<ExtSyscall_U32_U32>((void*)SockListen));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_ACCEPT, std::make_shared<ExtSyscall_U32_P_P>((void*)SockAccept));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_GETSOCKNAME, std::make_shared<ExtSyscall_U32_P>((void*)SockGetSockName));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_GETPEERNAME, std::make_shared<ExtSyscall_U32_P>((void*)SockGetPeerName));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_SHUTDOWN, std::make_shared<ExtSyscall_U32_U32>((void*)SockShutdown));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_GETSOCKOPT, std::make_shared<ExtSyscall_U32_U32_U32_P_P>((void*)SockGetOpt));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_SETSOCKOPT, std::make_shared<ExtSyscall_U32_U32_U32_P_U32>((void*)SockSetOpt));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_RECVMSG, std::make_shared<ExtSyscall_U32_P_P_U32>((void*)SockRecvMsg));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_SENDMSG, std::make_shared<ExtSyscall_U32_P_P_U32>((void*)SockSendMsg));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_SOCK_GETIFADDRS, std::make_shared<ExtSyscall_P>((void*)SockGetIfAddrs));
+
         // Override some original WASI implementation
         static NativeSymbol wasiPreview1NativeSymbols[] = {
             {"poll_oneoff", (void*)WasiPollOneOff, "(**i*)i", nullptr},
@@ -211,7 +208,7 @@ namespace WAMR_EXT_NS {
             return UVWASI_EINVAL;
         }
 
-        int32 sockFlags = 0;
+        int32_t sockFlags = 0;
         if ((type & __WASI_SOCK_NONBLOCK) == __WASI_SOCK_NONBLOCK)
             sockFlags |= __WASI_SOCK_NONBLOCK;
 
@@ -246,9 +243,9 @@ namespace WAMR_EXT_NS {
         return InsertNewHostSocketFDToTable(get_module_inst(pExecEnv), newHostSockFD, wasiSockType, *outAppSockFD);
     }
 
-    int32_t WasiSocketExt::SockBind(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base *_pAppBindAddr) {
+    int32_t WasiSocketExt::SockBind(wasm_exec_env_t pExecEnv, int32_t appSockFD, void *_pAppBindAddr) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppBindAddr, _pAppBindAddr->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppBindAddr, sizeof(wasi::wamr_wasi_sockaddr_storage)))
             return UVWASI_EFAULT;
         sockaddr_storage hostBindAddr;
         socklen_t hostAddrLen = 0;
@@ -264,9 +261,9 @@ namespace WAMR_EXT_NS {
         return err;
     }
 
-    int32_t WasiSocketExt::SockConnect(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base* _pAppConnectAddr) {
+    int32_t WasiSocketExt::SockConnect(wasm_exec_env_t pExecEnv, int32_t appSockFD, void* _pAppConnectAddr) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppConnectAddr, _pAppConnectAddr->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppConnectAddr, sizeof(wasi::wamr_wasi_sockaddr_storage)))
             return UVWASI_EFAULT;
         sockaddr_storage hostConnAddr;
         socklen_t hostAddrLen = 0;
@@ -294,9 +291,9 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t WasiSocketExt::SockAccept(wasm_exec_env_t pExecEnv, int32_t appSockFD, int32_t *outNewAppSockFD,
-                                      wasi::wamr_wasi_struct_base *_pAppSockAddr) {
+                                      void *_pAppSockAddr) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, _pAppSockAddr->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, sizeof(wasi::wamr_wasi_sockaddr_storage)))
             return UVWASI_EFAULT;
         uvwasi_errno_t err;
         uv_os_sock_t hostSockFD;
@@ -316,9 +313,9 @@ namespace WAMR_EXT_NS {
         return err;
     }
 
-    int32_t WasiSocketExt::SockGetSockName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base *_pAppSockAddr) {
+    int32_t WasiSocketExt::SockGetSockName(wasm_exec_env_t pExecEnv, int32_t appSockFD, void *_pAppSockAddr) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, _pAppSockAddr->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, sizeof(wasi::wamr_wasi_sockaddr_storage)))
             return UVWASI_EFAULT;
         uvwasi_errno_t err;
         uv_os_sock_t hostSockFD;
@@ -333,9 +330,9 @@ namespace WAMR_EXT_NS {
         return err;
     }
 
-    int32_t WasiSocketExt::SockGetPeerName(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base *_pAppSockAddr) {
+    int32_t WasiSocketExt::SockGetPeerName(wasm_exec_env_t pExecEnv, int32_t appSockFD, void *_pAppSockAddr) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, _pAppSockAddr->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppSockAddr, sizeof(wasi::wamr_wasi_sockaddr_storage)))
             return UVWASI_EFAULT;
         uvwasi_errno_t err;
         uv_os_sock_t hostSockFD;
@@ -601,12 +598,12 @@ namespace WAMR_EXT_NS {
         return hostSockFlags;
     }
 
-    int32_t WasiSocketExt::SockRecvMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base *_pAppMsgHdr,
+    int32_t WasiSocketExt::SockRecvMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, void *_pAppMsgHdr,
                                        wasi::wasi_iovec_t* pAppIOVec, uint32_t appIOVecCount) {
         if (appIOVecCount <= 0)
             return UVWASI_EINVAL;
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppMsgHdr, _pAppMsgHdr->struct_size) ||
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppMsgHdr, sizeof(wasi::wamr_wasi_msghdr)) ||
             !wasm_runtime_validate_native_addr(pWasmModuleInst, pAppIOVec, sizeof(*pAppIOVec) * appIOVecCount)) {
             return UVWASI_EFAULT;
         }
@@ -653,12 +650,12 @@ namespace WAMR_EXT_NS {
         return err;
     }
 
-    int32_t WasiSocketExt::SockSendMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, wasi::wamr_wasi_struct_base *_pAppMsgHdr,
+    int32_t WasiSocketExt::SockSendMsg(wasm_exec_env_t pExecEnv, int32_t appSockFD, void *_pAppMsgHdr,
                                        wasi::wasi_iovec_t *pAppIOVec, uint32_t appIOVecCount) {
         if (appIOVecCount <= 0)
             return UVWASI_EINVAL;
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppMsgHdr, _pAppMsgHdr->struct_size) ||
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppMsgHdr, sizeof(wasi::wamr_wasi_msghdr)) ||
             !wasm_runtime_validate_native_addr(pWasmModuleInst, pAppIOVec, sizeof(*pAppIOVec) * appIOVecCount)) {
             return UVWASI_EFAULT;
         }
@@ -717,9 +714,9 @@ namespace WAMR_EXT_NS {
 #define __WASI_IFF_ALLMULTI 0x200
 #define __WASI_IFF_MULTICAST 0x1000
 
-    int32_t WasiSocketExt::SockGetIfAddrs(wasm_exec_env_t pExecEnv, wasi::wamr_wasi_struct_base *_pAppIfAddrsReq) {
+    int32_t WasiSocketExt::SockGetIfAddrs(wasm_exec_env_t pExecEnv, void *_pAppIfAddrsReq) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppIfAddrsReq, _pAppIfAddrsReq->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppIfAddrsReq, sizeof(wasi::wamr_wasi_ifaddrs_req)))
             return UVWASI_EFAULT;
         wasi::wamr_wasi_ifaddrs_req* pAppIfAddrsReq = static_cast<wasi::wamr_wasi_ifaddrs_req*>(_pAppIfAddrsReq);
         pAppIfAddrsReq->ret_ifaddr_cnt = 0;

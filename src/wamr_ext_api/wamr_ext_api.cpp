@@ -70,6 +70,12 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t WasiExtSyscall(wasm_exec_env_t pExecEnv, uint32_t syscallID, uint32_t argc, wasi::wamr_ext_syscall_arg* argv) {
+        if (argc > 0) {
+            if (!argv || !wasm_runtime_validate_native_addr(get_module_inst(pExecEnv), argv, sizeof(wasi::wamr_ext_syscall_arg) * argc)) {
+                assert(false);
+                return EFAULT;
+            }
+        }
         auto it = gExtSyscallMap.find((wasi::wamr_ext_syscall_id)syscallID);
         if (it == gExtSyscallMap.end()) {
             assert(false);

@@ -21,19 +21,19 @@ typedef struct flock host_flock_t;
 
 namespace WAMR_EXT_NS {
     namespace wasi {
-        struct wamr_statvfs : public wamr_wasi_struct_base {
+        struct wamr_statvfs {
             uint32_t f_bsize;
             uint64_t f_blocks;
             uint64_t f_bfree;
             uint64_t f_bavail;
         };
-        wamr_wasi_struct_assert(wamr_statvfs);
+        static_assert(std::is_trivial<wamr_statvfs>::value);
 
-        struct wamr_fcntl_generic : public wamr_wasi_struct_base {
+        struct wamr_fcntl_generic {
             int32_t cmd;
             int32_t ret_value;
         };
-        wamr_wasi_struct_assert(wamr_fcntl_generic);
+        static_assert(std::is_trivial<wamr_fcntl_generic>::value);
 
         struct wamr_fcntl_flock : public wamr_fcntl_generic {
             int16_t l_type;
@@ -42,20 +42,17 @@ namespace WAMR_EXT_NS {
             int64_t l_len;
         };
 
-        wamr_wasi_struct_assert(wamr_fcntl_flock);
+        static_assert(std::is_trivial<wamr_fcntl_flock>::value);
     }
 
     void WasiFSExt::Init() {
-        static NativeSymbol nativeSymbols[] = {
-            {"fd_statvfs", (void*)FDStatVFS, "(i*)i", nullptr},
-            {"fd_fcntl", (void*)FDFcntl, "(i*)i", nullptr},
-        };
-        wasm_runtime_register_natives("fs_ext", nativeSymbols, sizeof(nativeSymbols) / sizeof(NativeSymbol));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_FD_STATVFS, std::make_shared<ExtSyscall_U32_P>((void*)FDStatVFS));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_FD_EXT_FCNTL, std::make_shared<ExtSyscall_U32_P>((void*)FDFcntl));
     }
 
-    int32_t WasiFSExt::FDStatVFS(wasm_exec_env_t pExecEnv, int32_t fd, wasi::wamr_wasi_struct_base* _pAppRetStatInfo) {
+    int32_t WasiFSExt::FDStatVFS(wasm_exec_env_t pExecEnv, int32_t fd, void* _pAppRetStatInfo) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppRetStatInfo, _pAppRetStatInfo->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppRetStatInfo, sizeof(wasi::wamr_statvfs)))
             return UVWASI_EFAULT;
         uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
         uvwasi_fd_wrap_t* pFDWrap = nullptr;
@@ -87,9 +84,9 @@ namespace WAMR_EXT_NS {
 #define __WASI_F_WRLCK 1
 #define __WASI_F_UNLCK 2
 
-    int32_t WasiFSExt::FDFcntl(wasm_exec_env_t pExecEnv, int32_t fd, wasi::wamr_wasi_struct_base *_pAppFcntlInfo) {
+    int32_t WasiFSExt::FDFcntl(wasm_exec_env_t pExecEnv, int32_t fd, void* _pAppFcntlInfo) {
         wasm_module_inst_t pWasmModule = get_module_inst(pExecEnv);
-        if (!wasm_runtime_validate_native_addr(pWasmModule, _pAppFcntlInfo, _pAppFcntlInfo->struct_size))
+        if (!wasm_runtime_validate_native_addr(pWasmModule, _pAppFcntlInfo, sizeof(wasi::wamr_fcntl_generic)))
             return UVWASI_EFAULT;
         uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModule);
         uvwasi_fd_wrap_t* pFDWrap = nullptr;
@@ -103,8 +100,8 @@ namespace WAMR_EXT_NS {
             case __WASI_F_GETLK:
             case __WASI_F_SETLK:
             case __WASI_F_SETLKW: {
-                if (pAppFcntlGeneric->struct_size < sizeof(wasi::wamr_fcntl_flock)) {
-                    err = UVWASI_ERANGE;
+                if (!wasm_runtime_validate_native_addr(pWasmModule, _pAppFcntlInfo, sizeof(wasi::wamr_fcntl_flock))) {
+                    err = UVWASI_EFAULT;
                     break;
                 }
                 wasi::wamr_fcntl_flock* pAppFLockCtrl = static_cast<wasi::wamr_fcntl_flock*>(pAppFcntlGeneric);
