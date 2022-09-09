@@ -608,7 +608,7 @@ namespace WAMR_EXT_NS {
             return UVWASI_EFAULT;
         }
         for (uint32_t i = 0; i < appIOVecCount; i++) {
-            if (!wasm_runtime_validate_app_addr(pWasmModuleInst, pAppIOVec[i].app_buf_offset, pAppIOVec[i].buf_len))
+            if (pAppIOVec[i].app_buf_offset == 0 || !wasm_runtime_validate_app_addr(pWasmModuleInst, pAppIOVec[i].app_buf_offset, pAppIOVec[i].buf_len))
                 return UVWASI_EFAULT;
         }
         wasi::wamr_wasi_msghdr* pAppMsgHdr = static_cast<wasi::wamr_wasi_msghdr*>(_pAppMsgHdr);
@@ -660,7 +660,7 @@ namespace WAMR_EXT_NS {
             return UVWASI_EFAULT;
         }
         for (uint32_t i = 0; i < appIOVecCount; i++) {
-            if (!wasm_runtime_validate_app_addr(pWasmModuleInst, pAppIOVec[i].app_buf_offset, pAppIOVec[i].buf_len))
+            if (pAppIOVec[i].app_buf_offset == 0 || !wasm_runtime_validate_app_addr(pWasmModuleInst, pAppIOVec[i].app_buf_offset, pAppIOVec[i].buf_len))
                 return UVWASI_EFAULT;
         }
         wasi::wamr_wasi_msghdr* pAppMsgHdr = static_cast<wasi::wamr_wasi_msghdr*>(_pAppMsgHdr);
