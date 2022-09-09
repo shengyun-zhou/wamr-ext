@@ -139,6 +139,13 @@ namespace WAMR_EXT_NS {
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };
 
+    struct ExtSyscall_S : public ExtSyscallBase {
+    public:
+        ExtSyscall_S(void* pFunc) : ExtSyscallBase("$", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
     struct ExtSyscall_P_U32 : public ExtSyscallBase {
     public:
         ExtSyscall_P_U32(void* pFunc) : ExtSyscallBase("*i", pFunc) {}
@@ -177,6 +184,13 @@ namespace WAMR_EXT_NS {
     struct ExtSyscall_P_P_P : public ExtSyscallBase {
     public:
         ExtSyscall_P_P_P(void* pFunc) : ExtSyscallBase("***", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_S_P_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_S_P_P(void* pFunc) : ExtSyscallBase("$**", pFunc) {}
     protected:
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };

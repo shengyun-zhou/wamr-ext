@@ -20,7 +20,7 @@ namespace WAMR_EXT_NS {
         RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_RWLOCK_UNLOCK, std::make_shared<ExtSyscall_P>((void*)PthreadRWLockUnlock));
         RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_RWLOCK_DESTROY, std::make_shared<ExtSyscall_P>((void*)PthreadRWLockDestroy));
 
-        RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_HOST_SETNAME, std::make_shared<ExtSyscall_P>((void*)PthreadSetName));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_HOST_SETNAME, std::make_shared<ExtSyscall_S>((void*)PthreadSetName));
     }
 
     WasiPthreadExt::InstancePthreadManager::InstancePthreadManager() {

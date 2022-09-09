@@ -31,11 +31,17 @@ namespace WAMR_EXT_NS {
         auto wasmInstance = get_module_inst(pExecEnv);
         for (size_t i = 0; i < m_argSig.length(); i++) {
             char c = m_argSig[i];
-            if (c == '*') {
+            if (c == '*' || c == '$') {
                 void* p = wasm_runtime_addr_app_to_native(wasmInstance, appArgv[i].app_pointer);
                 if (!p) {
                     assert(false);
                     return UVWASI_EFAULT;
+                }
+                if (c == '$') {
+                    if (!wasm_runtime_validate_app_str_addr(wasmInstance, appArgv[i].app_pointer)) {
+                        assert(false);
+                        return UVWASI_EFAULT;
+                    }
                 }
                 appArgv[i].native_pointer = p;
             }
@@ -44,6 +50,10 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t ExtSyscall_P::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer);
+    }
+
+    int32_t ExtSyscall_S::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
         return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer);
     }
 
@@ -74,6 +84,12 @@ namespace WAMR_EXT_NS {
     }
 
     int32_t ExtSyscall_P_P_P::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*, void*, void*)>(m_pFunc)(
+                pExecEnv, appArgv[0].native_pointer, appArgv[1].native_pointer, appArgv[2].native_pointer
+        );
+    }
+
+    int32_t ExtSyscall_S_P_P::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
         return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*, void*, void*)>(m_pFunc)(
                 pExecEnv, appArgv[0].native_pointer, appArgv[1].native_pointer, appArgv[2].native_pointer
         );

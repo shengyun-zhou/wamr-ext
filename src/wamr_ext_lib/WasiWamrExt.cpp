@@ -7,7 +7,7 @@
 
 namespace WAMR_EXT_NS {
     void WasiWamrExt::Init() {
-        RegisterExtSyscall(wasi::__EXT_SYSCALL_WAMR_EXT_SYSCTL, std::make_shared<ExtSyscall_P_P_P>((void*)WamrExtSysctl));
+        RegisterExtSyscall(wasi::__EXT_SYSCALL_WAMR_EXT_SYSCTL, std::make_shared<ExtSyscall_S_P_P>((void*)WamrExtSysctl));
     }
 
     int32_t WasiWamrExt::WamrExtSysctl(wasm_exec_env_t pExecEnv, const char *name, void *buf, uint32_t* bufLen) {
