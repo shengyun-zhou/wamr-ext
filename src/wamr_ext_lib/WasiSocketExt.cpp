@@ -138,6 +138,7 @@ namespace WAMR_EXT_NS {
 #define __WASI_IPPROTO_TCP 6
 #define __WASI_IPPROTO_UDP 17
 #define __WASI_SOCK_NONBLOCK (0x00004000)
+#define __WASI_SOCK_CLOEXEC (0x00002000)
 
     uvwasi_errno_t WasiSocketExt::WasiAppSockAddrToHostSockAddr(const wasi::wamr_wasi_sockaddr_storage *pWasiAppSockAddr,
                                                                 sockaddr_storage &hostSockAddr, socklen_t& outAddrLen) {
@@ -208,10 +209,6 @@ namespace WAMR_EXT_NS {
             return UVWASI_EINVAL;
         }
 
-        int32_t sockFlags = 0;
-        if ((type & __WASI_SOCK_NONBLOCK) == __WASI_SOCK_NONBLOCK)
-            sockFlags |= __WASI_SOCK_NONBLOCK;
-
         if (hostSockType == SOCK_DGRAM) {
             if (protocol == 0)
                 protocol = __WASI_IPPROTO_UDP;
@@ -230,16 +227,29 @@ namespace WAMR_EXT_NS {
         uv_os_sock_t newHostSockFD = socket(domain, hostSockType, protocol);
         if (newHostSockFD == INVALID_SOCKET)
             return GetSysLastSocketError();
-        if (sockFlags & __WASI_SOCK_NONBLOCK) {
+#ifndef _WIN32
+        int hostSockFcntlFlags = 0;
+#endif
+        if ((type & __WASI_SOCK_NONBLOCK) == __WASI_SOCK_NONBLOCK) {
 #ifdef _WIN32
             u_long nbio = 1;
             ioctlsocket(newHostSockFD, FIONBIO, &nbio);
 #else
-            int tempFlags = fcntl(newHostSockFD, F_GETFL, 0);
-            if (tempFlags != -1)
-                fcntl(newHostSockFD, F_SETFL, tempFlags | O_NONBLOCK);
+            hostSockFcntlFlags |= O_NONBLOCK;
 #endif
         }
+        if ((type & __WASI_SOCK_CLOEXEC) == __WASI_SOCK_CLOEXEC) {
+#ifndef _WIN32
+            hostSockFcntlFlags |= O_CLOEXEC;
+#endif
+        }
+#ifndef _WIN32
+        if (hostSockFcntlFlags != 0) {
+            int tempFlags = fcntl(newHostSockFD, F_GETFL, 0);
+            if (tempFlags != -1)
+                fcntl(newHostSockFD, F_SETFL, tempFlags | hostSockFcntlFlags);
+        }
+#endif
         return InsertNewHostSocketFDToTable(get_module_inst(pExecEnv), newHostSockFD, wasiSockType, *outAppSockFD);
     }
 
