@@ -1,4 +1,5 @@
 #include "WasiSocketExt.h"
+#include "WamrExtInternalDef.h"
 #include <thread>
 #include <uv.h>
 #ifndef _WIN32
@@ -102,14 +103,13 @@ namespace WAMR_EXT_NS {
 
     uvwasi_errno_t WasiSocketExt::GetHostSocketFD(wasm_module_inst_t pWasmModuleInst, int32_t appSockFD, uv_os_sock_t &outHostSockFD,
                                                   uvwasi_filetype_t& outWasiSockType) {
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
-        uvwasi_fd_wrap_t* pFDWrap = nullptr;
-        uvwasi_errno_t err = uvwasi_fd_table_get(pUVWasi->fds, appSockFD, &pFDWrap, 0, 0);
+        uv_os_fd_t hostFD;
+        auto err = Utility::GetHostFDByAppFD(pWasmModuleInst, appSockFD, hostFD, [&outWasiSockType](const uvwasi_fd_wrap_t* pFDWrap) {
+            outWasiSockType = pFDWrap->type;
+        });
         if (err != 0)
             return err;
-        outWasiSockType = pFDWrap->type;
-        outHostSockFD = (uv_os_sock_t)uv_get_osfhandle(pFDWrap->fd);
-        uv_mutex_unlock(&pFDWrap->mutex);
+        outHostSockFD = (uv_os_sock_t)hostFD;
         return 0;
     }
 

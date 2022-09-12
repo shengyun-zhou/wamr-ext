@@ -57,6 +57,20 @@ namespace WAMR_EXT_NS {
         return tempThreadName;
     }
 
+    uvwasi_errno_t Utility::GetHostFDByAppFD(wasm_module_inst_t pWasmModuleInst, int32_t appFD, uv_os_fd_t &outHostFD,
+                                             const std::function<void(const uvwasi_fd_wrap_t*)> &cb) {
+        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
+        uvwasi_fd_wrap_t* pFDWrap = nullptr;
+        uvwasi_errno_t err = uvwasi_fd_table_get(pUVWasi->fds, appFD, &pFDWrap, 0, 0);
+        if (err != 0)
+            return err;
+        if (cb)
+            cb(pFDWrap);
+        outHostFD = uv_get_osfhandle(pFDWrap->fd);
+        uv_mutex_unlock(&pFDWrap->mutex);
+        return 0;
+    }
+
     uvwasi_errno_t Utility::ConvertErrnoToWasiErrno(int error) {
         if (error == 0)
             return 0;

@@ -1,6 +1,7 @@
 #pragma once
 #include "../base/BaseDef.h"
 #include "WasiPthreadExt.h"
+#include "WasiProcessExt.h"
 #include "wamr_ext_api.h"
 
 struct WamrExtInstanceConfig {
@@ -41,6 +42,7 @@ struct WamrExtInstance {
     std::mutex execFuncLock;
     std::unordered_map<std::string, wasm_exec_env_t> wasmExecEnvMap;
     WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
+    WAMR_EXT_NS::WasiProcessExt::ProcManager wasiProcessManager;
 
     explicit WamrExtInstance(WamrExtModule* _pModule, wamr_ext_instance_t* _pUserCallbackPointer) :
         pMainModule(_pModule), config(_pModule->instDefaultConf), pUserCallbackPointer(_pUserCallbackPointer) {}
@@ -105,6 +107,10 @@ namespace WAMR_EXT_NS {
             __EXT_SYSCALL_SOCK_RECVMSG = 310,
             __EXT_SYSCALL_SOCK_SENDMSG = 311,
             __EXT_SYSCALL_SOCK_GETIFADDRS = 312,
+
+            // Process ext
+            __EXT_SYSCALL_PROC_SPAWN = 400,
+            __EXT_SYSCALL_PROC_WAIT_PID = 401,
         };
 
         typedef long long wasi_time_t;
@@ -219,6 +225,13 @@ namespace WAMR_EXT_NS {
     struct ExtSyscall_U32_P_P_U32 : public ExtSyscallBase {
     public:
         ExtSyscall_U32_P_P_U32(void* pFunc) : ExtSyscallBase("i**i", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32_U32_P_P : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32_U32_P_P(void* pFunc) : ExtSyscallBase("ii**", pFunc) {}
     protected:
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };

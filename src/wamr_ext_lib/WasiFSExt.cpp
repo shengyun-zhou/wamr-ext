@@ -1,7 +1,6 @@
 #include "WasiFSExt.h"
-#include "../base/Utility.h"
+#include "WamrExtInternalDef.h"
 extern "C" {
-#include <fd_table.h>
 #include <uv_mapping.h>
 }
 #ifndef _WIN32
@@ -54,13 +53,15 @@ namespace WAMR_EXT_NS {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
         if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppRetStatInfo, sizeof(wasi::wamr_statvfs)))
             return UVWASI_EFAULT;
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
-        uvwasi_fd_wrap_t* pFDWrap = nullptr;
-        uvwasi_errno_t err = uvwasi_fd_table_get(pUVWasi->fds, fd, &pFDWrap, 0, 0);
+        std::string path;
+        uv_os_fd_t _osfd;
+        auto err = Utility::GetHostFDByAppFD(pWasmModuleInst, fd, _osfd, [&path](const uvwasi_fd_wrap_t* pFDWrap) {
+            path = pFDWrap->real_path;
+        });
         if (err != 0)
             return err;
         uv_fs_t req;
-        int uvErr = uv_fs_statfs(nullptr, &req, pFDWrap->real_path, nullptr);
+        int uvErr = uv_fs_statfs(nullptr, &req, path.c_str(), nullptr);
         if (uvErr != 0) {
             err = uvwasi__translate_uv_error(uvErr);
         } else {
@@ -71,7 +72,6 @@ namespace WAMR_EXT_NS {
             pAppRetStatInfo->f_bfree = pUVRet->f_bfree;
             pAppRetStatInfo->f_bavail = pUVRet->f_bavail;
         }
-        uv_mutex_unlock(&pFDWrap->mutex);
         uv_fs_req_cleanup(&req);
         return err;
     }
@@ -88,12 +88,10 @@ namespace WAMR_EXT_NS {
         wasm_module_inst_t pWasmModule = get_module_inst(pExecEnv);
         if (!wasm_runtime_validate_native_addr(pWasmModule, _pAppFcntlInfo, sizeof(wasi::wamr_fcntl_generic)))
             return UVWASI_EFAULT;
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModule);
-        uvwasi_fd_wrap_t* pFDWrap = nullptr;
-        uvwasi_errno_t err = uvwasi_fd_table_get(pUVWasi->fds, fd, &pFDWrap, 0, 0);
+        uv_os_fd_t osfd;
+        auto err = Utility::GetHostFDByAppFD(pWasmModule, fd, osfd);
         if (err != 0)
             return err;
-        uv_os_fd_t osfd = uv_get_osfhandle(pFDWrap->fd);
         wasi::wamr_fcntl_generic* pAppFcntlGeneric = static_cast<wasi::wamr_fcntl_generic*>(_pAppFcntlInfo);
         pAppFcntlGeneric->ret_value = 0;
         switch (pAppFcntlGeneric->cmd) {
@@ -187,7 +185,6 @@ namespace WAMR_EXT_NS {
                 err = UVWASI_EINVAL;
                 break;
         }
-        uv_mutex_unlock(&pFDWrap->mutex);
         return err;
     }
 }

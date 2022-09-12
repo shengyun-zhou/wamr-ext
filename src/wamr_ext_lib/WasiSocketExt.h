@@ -1,8 +1,6 @@
 #pragma once
 #include "../base/Utility.h"
-#include "WamrExtInternalDef.h"
 extern "C" {
-#include <fd_table.h>
 #include <uv_mapping.h>
 #include <wasi_rights.h>
 }
@@ -14,6 +12,7 @@ extern "C" {
 namespace WAMR_EXT_NS {
     namespace wasi {
         struct wamr_wasi_sockaddr_storage;
+        struct wasi_iovec_t;
     }
 
     class WasiSocketExt {
