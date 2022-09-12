@@ -49,6 +49,15 @@ namespace WAMR_EXT_NS {
                 config.exceptionCB = *(WamrExtInstanceExceptionCB*)value;
                 break;
             }
+            case WAMR_EXT_INST_OPT_ADD_HOST_COMMAND: {
+                WamrExtKeyValueSS* kv = (WamrExtKeyValueSS*)value;
+                if (strstr(kv->k, "/") || strstr(kv->k, "\\")) {
+                    ret = EINVAL;
+                    break;
+                }
+                config.hostCmdWhitelist[kv->k] = kv->v;
+                break;
+            }
             default:
                 ret = EINVAL;
                 break;

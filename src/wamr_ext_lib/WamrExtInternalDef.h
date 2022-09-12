@@ -8,6 +8,7 @@ struct WamrExtInstanceConfig {
     uint8_t maxThreadNum{4};
     std::map<std::string, std::string> preOpenDirs;     // mapped dir -> host dir
     std::map<std::string, std::string> envVars;
+    std::map<std::string, std::string> hostCmdWhitelist;
     std::vector<std::string> args;
     WamrExtInstanceExceptionCB exceptionCB{.func = nullptr};
 

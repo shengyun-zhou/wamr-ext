@@ -17,6 +17,13 @@ WamrExtInstanceConfig::WamrExtInstanceConfig() {
         preOpenDirs["/tmp"] = tempDirPath;
         envVars["TMPDIR"] = "/tmp";
     }
+#ifndef _WIN32
+    hostCmdWhitelist["uname"] = "uname";
+    hostCmdWhitelist["ping"] = "ping";
+#else
+    hostCmdWhitelist["ping"] = "ping.exe";
+#endif
+
 }
 
 namespace WAMR_EXT_NS {

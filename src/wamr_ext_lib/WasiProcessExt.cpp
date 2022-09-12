@@ -49,12 +49,20 @@ namespace WAMR_EXT_NS {
         auto pAppReq = (wasi::wamr_spawn_req*)_pAppReq;
         if (!wasm_runtime_validate_app_str_addr(pWasmModuleInst, pAppReq->app_cmd_name_pointer))
             return UVWASI_EFAULT;
-        const char* cmdName = static_cast<const char*>(wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppReq->app_cmd_name_pointer));
+        std::string hostCmd;
+        {
+            const char* appCmdName = static_cast<const char*>(wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppReq->app_cmd_name_pointer));
+            std::lock_guard<std::mutex> _instAL(pWamrExtInst->instanceLock);
+            auto it = pWamrExtInst->config.hostCmdWhitelist.find(appCmdName);
+            if (it == pWamrExtInst->config.hostCmdWhitelist.end())
+                return UVWASI_ENOENT;
+            hostCmd = it->second;
+        }
         if (!wasm_runtime_validate_app_addr(pWasmModuleInst, pAppReq->app_argv_pointer, sizeof(uint32_t) * pAppReq->argc))
             return UVWASI_EFAULT;
         std::vector<const char*> hostArgv;
         hostArgv.reserve(pAppReq->argc + 2);
-        hostArgv.push_back(cmdName);
+        hostArgv.push_back(hostCmd.c_str());
         uint32_t* appArgvPointers = static_cast<uint32_t*>(wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppReq->app_argv_pointer));
         for (uint32_t i = 0; i < pAppReq->argc; i++) {
             if (!wasm_runtime_validate_app_str_addr(pWasmModuleInst, appArgvPointers[i]))
@@ -123,7 +131,10 @@ namespace WAMR_EXT_NS {
                     break;
                 }
                 posix_spawn_file_actions_addclose(&hostFA, pipeFD[0]);
-                err = posix_spawnp(&childPID, cmdName, &hostFA, nullptr, (char **) hostArgv.data(), environ);
+                if (hostCmd.find(std::filesystem::path::preferred_separator) == std::string::npos)
+                    err = posix_spawnp(&childPID, hostCmd.c_str(), &hostFA, nullptr, (char**)hostArgv.data(), environ);
+                else
+                    err = posix_spawn(&childPID, hostCmd.c_str(), &hostFA, nullptr, (char**)hostArgv.data(), environ);
                 close(pipeFD[1]);
                 if (err != 0) {
                     close(pipeFD[0]);

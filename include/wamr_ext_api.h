@@ -33,6 +33,10 @@ enum WamrExtInstanceOpt {
     WAMR_EXT_INST_OPT_ARG = 4,
     // Set callback when WAsm app raises exception during running(e.g. out of memory access), value type: WamrExtInstanceExceptionCB*
     WAMR_EXT_INST_OPT_EXCEPTION_CALLBACK = 5,
+    // Add a host command to whitelist to allow WAsm app to execute it.
+    // Value type: WamrExtKeyValueSS*, where key is the command name(NOT command path) used by WAsm app, value is the mapped host command name or path.
+    // e.g. ping -> ping, uname -> /usr/bin/uname
+    WAMR_EXT_INST_OPT_ADD_HOST_COMMAND = 6,
 };
 
 struct WamrExtKeyValueSS {
