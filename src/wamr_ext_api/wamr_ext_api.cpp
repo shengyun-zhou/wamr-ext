@@ -128,12 +128,14 @@ namespace WAMR_EXT_NS {
                     case WamrExtInstance::STATE_STARTED: {
                         const char* exceptionStr = wasm_runtime_get_exception(pInst->wasmMainInstance);
                         if (exceptionStr && exceptionStr[0]) {
-                            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", exceptionStr);
+                            WamrExtExceptionInfo exceptionInfo;
+                            exceptionInfo.errorCode = -1;
+                            exceptionInfo.errorStr = exceptionStr;
                             auto exceptionCB = pInst->config.exceptionCB;
                             pInst->state = WamrExtInstance::STATE_ENDED;
                             if (exceptionCB.func) {
                                 instAL.unlock();
-                                exceptionCB.func(pInst->pUserCallbackPointer, -1, exceptionCB.user_data);
+                                exceptionCB.func(pInst->pUserCallbackPointer, &exceptionInfo, exceptionCB.user_data);
                                 instAL.lock();
                             }
                         }
@@ -415,4 +417,22 @@ const char* wamr_ext_strerror(int32_t err) {
         return strerror(err);
     else
         return WAMR_EXT_NS::gLastErrorStr;
+}
+
+int32_t wamr_ext_exception_get_info(wamr_ext_exception_info_t* exception, enum WamrExtExceptionInfoEnum info, void* value) {
+    if (!exception || !value)
+        return EINVAL;
+    int32_t err = 0;
+    switch (info) {
+        case WAMR_EXT_EXCEPTION_INFO_ERROR_CODE:
+            *((int32_t*)value) = exception->errorCode;
+            break;
+        case WAMR_EXT_EXCEPTION_INFO_ERROR_STRING:
+            *((char**)value) = const_cast<char*>(exception->errorStr.c_str());
+            break;
+        default:
+            err = EINVAL;
+            break;
+    }
+    return err;
 }

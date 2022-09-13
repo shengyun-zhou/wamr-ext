@@ -51,6 +51,11 @@ struct WamrExtInstance {
     WamrExtInstance& operator=(const WamrExtInstance&) = delete;
 };
 
+struct WamrExtExceptionInfo {
+    int32_t errorCode;
+    std::string errorStr;
+};
+
 namespace WAMR_EXT_NS {
     extern thread_local char gLastErrorStr[200];
 

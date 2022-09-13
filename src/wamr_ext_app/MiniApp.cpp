@@ -71,9 +71,13 @@ int main(int argc, char** argv) {
     }
     {
         WamrExtInstanceExceptionCB cb;
-        cb.func = [](wamr_ext_instance_t *, int32_t err, void *) {
-            printf("Unexpected app exception: %s\n", wamr_ext_strerror(err));
-            _Exit(err);
+        cb.func = [](wamr_ext_instance_t*, wamr_ext_exception_info_t* exceptionInfo, void *) {
+            char* errStr = nullptr;
+            wamr_ext_exception_get_info(exceptionInfo, WAMR_EXT_EXCEPTION_INFO_ERROR_STRING, &errStr);
+            printf("Unexpected app exception: %s\n", errStr);
+            int32_t errCode = 233;
+            wamr_ext_exception_get_info(exceptionInfo, WAMR_EXT_EXCEPTION_INFO_ERROR_CODE, &errCode);
+            _Exit(errCode);
         };
         cb.user_data = nullptr;
         wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_EXCEPTION_CALLBACK, &cb);

@@ -44,8 +44,18 @@ struct WamrExtKeyValueSS {
     const char* v;
 };
 
+struct WamrExtExceptionInfo;
+typedef struct WamrExtExceptionInfo wamr_ext_exception_info_t;
+
+enum WamrExtExceptionInfoEnum {
+    // Get error code of the exception, value type: int32_t*
+    WAMR_EXT_EXCEPTION_INFO_ERROR_CODE = 1,
+    // Get error string info of the exception, value type: char**,
+    WAMR_EXT_EXCEPTION_INFO_ERROR_STRING = 2,
+};
+
 struct WamrExtInstanceExceptionCB {
-    void(*func)(wamr_ext_instance_t* inst, int32_t err, void* user_data);
+    void(*func)(wamr_ext_instance_t* inst, wamr_ext_exception_info_t* exception_info, void* user_data);
     void* user_data;
 };
 
@@ -60,6 +70,7 @@ WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst,
 WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst);
 
 WAMR_EXT_API const char* wamr_ext_strerror(int32_t err);
+WAMR_EXT_API int32_t wamr_ext_exception_get_info(wamr_ext_exception_info_t* exception, enum WamrExtExceptionInfoEnum info, void* value);
 
 #ifdef __cplusplus
 }
