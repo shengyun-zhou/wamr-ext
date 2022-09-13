@@ -87,13 +87,19 @@ namespace WAMR_EXT_NS {
     }
 
     uvwasi_errno_t WasiSocketExt::GetSysLastSocketError() {
-        int err;
 #ifndef _WIN32
-        err = errno;
+        return ConvertSysSocketErrorToWasiErrno(errno);
+#else
+        return ConvertSysSocketErrorToWasiErrno(WSAGetLastError());
+#endif
+    }
+
+    uvwasi_errno_t WasiSocketExt::ConvertSysSocketErrorToWasiErrno(int err) {
+#ifndef _WIN32
+        return Utility::ConvertErrnoToWasiErrno(err);
 #else
 #error "Converting socket error code to uvwasi_errno_t is not implemented"
 #endif
-        return Utility::ConvertErrnoToWasiErrno(err);
     }
 
     uvwasi_errno_t WasiSocketExt::GetHostSocketFD(wasm_module_inst_t pWasmModuleInst, int32_t appSockFD, uv_os_sock_t &outHostSockFD) {
@@ -538,6 +544,8 @@ namespace WAMR_EXT_NS {
             } else {
                 if (*appOptBufLen > sizeof(hostSockOptVal.intVal))
                     *appOptBufLen = sizeof(hostSockOptVal.intVal);
+                if (hostOptLevel == SOL_SOCKET && hostOptName == SO_ERROR)
+                    hostSockOptVal.intVal = ConvertSysSocketErrorToWasiErrno(hostSockOptVal.intVal);
                 memcpy(appOptBuf, &hostSockOptVal.intVal, *appOptBufLen);
             }
         }

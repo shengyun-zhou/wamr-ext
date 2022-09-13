@@ -20,6 +20,7 @@ namespace WAMR_EXT_NS {
         static void Init();
     private:
         static uvwasi_errno_t GetSysLastSocketError();
+        static uvwasi_errno_t ConvertSysSocketErrorToWasiErrno(int err);
         static uvwasi_errno_t WasiAppSockAddrToHostSockAddr(const wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr,
                                                             sockaddr_storage& hostSockAddr, socklen_t& outAddrLen);
         static void HostSockAddrToWasiAppSockAddr(const sockaddr* pHostSockAddr, wasi::wamr_wasi_sockaddr_storage* pWasiAppSockAddr);
