@@ -172,6 +172,7 @@ namespace WAMR_EXT_NS {
             return UVWASI_EINVAL;
         int err = 0;
         if (useconds == UINT64_MAX) {
+            wasm_runtime_dump_call_stack(pExecEnv);
             err = pthread_mutex_lock(pMutex.get());
         } else if (useconds == 0) {
             err = pthread_mutex_trylock(pMutex.get());

@@ -37,6 +37,8 @@ enum WamrExtInstanceOpt {
     // Value type: WamrExtKeyValueSS*, where key is the command name(NOT command path) used by WAsm app, value is the mapped host command name or path.
     // e.g. ping -> ping, uname -> /usr/bin/uname
     WAMR_EXT_INST_OPT_ADD_HOST_COMMAND = 6,
+    // Set maximum memory size(bytes), value type: uint32_t*
+    WAMR_EXT_INST_OPT_MAX_MEMORY = 7,
 };
 
 struct WamrExtKeyValueSS {
