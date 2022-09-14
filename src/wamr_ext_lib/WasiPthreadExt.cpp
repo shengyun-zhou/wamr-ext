@@ -21,6 +21,11 @@ namespace WAMR_EXT_NS {
         RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_RWLOCK_DESTROY, std::make_shared<ExtSyscall_P>((void*)PthreadRWLockDestroy));
 
         RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_HOST_SETNAME, std::make_shared<ExtSyscall_S>((void*)PthreadSetName));
+
+        static NativeSymbol pthreadNativeSymbols[] = {
+            {"pthread_detach", (void*)PthreadDetach, "(i)i", nullptr},
+        };
+        wasm_runtime_register_natives("env", pthreadNativeSymbols, sizeof(pthreadNativeSymbols) / sizeof(NativeSymbol));
     }
 
     WasiPthreadExt::InstancePthreadManager::InstancePthreadManager() {
@@ -325,6 +330,12 @@ namespace WAMR_EXT_NS {
 
     int32_t WasiPthreadExt::PthreadSetName(wasm_exec_env_t pExecEnv, char *name) {
         Utility::SetCurrentThreadName(name);
+        return 0;
+    }
+
+    int32_t WasiPthreadExt::PthreadDetach(wasm_exec_env_t pExecEnv, uint32_t thread) {
+        // Block original pthread_detach() implementation due to crash at thread exit
+        // TODO: re-enable original pthread_detach() implementation after crash fix in WAMR
         return 0;
     }
 }
