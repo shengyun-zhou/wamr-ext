@@ -86,7 +86,10 @@ namespace WAMR_EXT_NS {
             appSpawnActions.push_back(pHostPointer);
             appPointer = pHostPointer->app_next_action_pointer;
         }
-#ifndef _WIN32
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+        // TODO: Add implementation for Android
+        return UVWASI_ENOSYS;
+#elif !defined(_WIN32)
         hostArgv.push_back(nullptr);
         // Allow redirection for stdin, stdout and stderr only
         uv_os_fd_t dup2FDArr[3];
