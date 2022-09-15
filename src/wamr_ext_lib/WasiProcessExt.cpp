@@ -1,7 +1,11 @@
 #include "WasiProcessExt.h"
 #include "WamrExtInternalDef.h"
 #ifndef _WIN32
+#ifdef __ANDROID__
+#include <libandroid-spawn/posix_spawn.h>
+#else
 #include <spawn.h>
+#endif
 #include <sys/wait.h>
 #endif
 
@@ -86,10 +90,7 @@ namespace WAMR_EXT_NS {
             appSpawnActions.push_back(pHostPointer);
             appPointer = pHostPointer->app_next_action_pointer;
         }
-#if defined(__ANDROID__) && __ANDROID_API__ < 28
-        // TODO: Add implementation for Android
-        return UVWASI_ENOSYS;
-#elif !defined(_WIN32)
+#if !defined(_WIN32)
         hostArgv.push_back(nullptr);
         // Allow redirection for stdin, stdout and stderr only
         uv_os_fd_t dup2FDArr[3];

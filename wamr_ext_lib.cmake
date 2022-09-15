@@ -32,6 +32,11 @@ if (ANDROID)
     target_link_libraries(wamr log)
 endif()
 
+if (ANDROID)
+    add_library(android-spawn STATIC
+            ${WAMR_EXT_ROOT_DIR}/third_party/libandroid-spawn/posix_spawn.cpp)
+endif()
+
 set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_EXT_ROOT_DIR}/include
         ${WAMR_ROOT_DIR}/core/iwasm/libraries
@@ -53,10 +58,14 @@ add_library(wamr_ext_obj OBJECT
         )
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
+set(WAMR_EXT_DEP_LIBS wamr)
+if (ANDROID)
+    list(APPEND WAMR_EXT_DEP_LIBS android-spawn)
+endif()
 add_library(wamr_ext_static STATIC
         $<TARGET_OBJECTS:wamr_ext_obj>
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_api/wamr_ext_api.cpp
         )
 target_include_directories(wamr_ext_static PRIVATE include ${WAMR_EXT_INCLUDE_DIRS})
 target_compile_definitions(wamr_ext_static PRIVATE -DWAMR_EXT_STATIC_LIB)
-target_link_libraries(wamr_ext_static PRIVATE wamr)
+target_link_libraries(wamr_ext_static PRIVATE ${WAMR_EXT_DEP_LIBS})
