@@ -3,7 +3,7 @@
 #include <thread>
 #include <uv.h>
 #ifndef _WIN32
-#if defined(__ANDROID__) && __ANDROID_API__ < 24
+#ifdef __ANDROID__
 #include <uv/android-ifaddrs.h>
 #else
 #include <ifaddrs.h>
