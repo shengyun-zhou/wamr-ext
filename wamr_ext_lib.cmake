@@ -34,9 +34,6 @@ add_library(wamr STATIC ${WAMR_RUNTIME_LIB_SOURCE})
 target_link_libraries(wamr uv_a)
 if (ANDROID)
     target_link_libraries(wamr log)
-endif()
-
-if (ANDROID)
     add_library(android-spawn STATIC
             ${WAMR_EXT_ROOT_DIR}/third_party/libandroid-spawn/posix_spawn.cpp)
 endif()
@@ -49,7 +46,13 @@ set(WAMR_EXT_INCLUDE_DIRS
         ${WAMR_EXT_ROOT_DIR}/third_party
         )
 
+include(${WAMR_EXT_ROOT_DIR}/version.cmake)
+message(STATUS "wamr-ext version: ${WAMR_EXT_VERSION_STRING}(${WAMR_EXT_VERSION_CODE})")
+configure_file(${WAMR_EXT_ROOT_DIR}/src/wamr_ext_api/wamr_ext_version.cpp.in
+        ${CMAKE_CURRENT_BINARY_DIR}/wamr_ext_version.cpp
+        )
 add_library(wamr_ext_obj OBJECT
+        ${CMAKE_CURRENT_BINARY_DIR}/wamr_ext_version.cpp
         ${WAMR_EXT_ROOT_DIR}/src/base/Utility.cpp
         ${WAMR_EXT_ROOT_DIR}/src/base/FSUtility.cpp
         ${WAMR_EXT_ROOT_DIR}/src/base/LoopThread.cpp

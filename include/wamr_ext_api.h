@@ -61,6 +61,7 @@ struct WamrExtInstanceExceptionCB {
     void* user_data;
 };
 
+WAMR_EXT_API void wamr_ext_version(const char** ver_str, uint32_t* ver_code);
 WAMR_EXT_API int32_t wamr_ext_init();
 WAMR_EXT_API int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* module_name, const char* file_path);
 WAMR_EXT_API int32_t wamr_ext_module_load_by_buffer(wamr_ext_module_t* module, const char* module_name, const uint8_t* buf, uint32_t len);

@@ -18,7 +18,9 @@ void SplitKeyValue(const std::string& srcStr, std::string& key, std::string& val
 }
 
 int main(int argc, char** argv) {
-    argparse::ArgumentParser ap("wamr_ext_miniapp");
+    const char* version = nullptr;
+    wamr_ext_version(&version, nullptr);
+    argparse::ArgumentParser ap("wamr_ext_miniapp", version);
     ap.add_argument("--max-threads").help("maximum thread number").scan<'i', int>().default_value(0);
     ap.add_argument("--max-memory").help("maximum memory").scan<'i', int>().default_value(0);
     ap.add_argument("--dir").default_value<std::vector<std::string>>({}).append().

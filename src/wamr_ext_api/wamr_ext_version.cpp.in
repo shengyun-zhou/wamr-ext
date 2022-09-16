@@ -1,0 +1,8 @@
+#include <wamr_ext_api.h>
+
+void wamr_ext_version(const char** ver_str, uint32_t* ver_code) {
+    if (ver_str)
+        *ver_str = "${WAMR_EXT_VERSION_STRING}";
+    if (ver_code)
+        *ver_code = ${WAMR_EXT_VERSION_CODE};
+}
