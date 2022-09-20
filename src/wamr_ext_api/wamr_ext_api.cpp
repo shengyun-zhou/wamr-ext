@@ -381,6 +381,19 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                     pMemory->memory_data_end.ptr = (uint8_t*)pMemory->memory_data.ptr + pMemory->memory_data_size;
                     pMemory->heap_data.ptr = pMemory->heap_data_end.ptr = (uint8_t*)pMemory->memory_data.ptr + heapOffset;
                     pMemory->cur_page_count = pMemory->max_page_count;
+#if UINTPTR_MAX == UINT64_MAX
+                    pMemory->mem_bound_check_1byte.u64 = totalMemSize - 1;
+                    pMemory->mem_bound_check_2bytes.u64 = totalMemSize - 2;
+                    pMemory->mem_bound_check_4bytes.u64 = totalMemSize - 4;
+                    pMemory->mem_bound_check_8bytes.u64 = totalMemSize - 8;
+                    pMemory->mem_bound_check_16bytes.u64 = totalMemSize - 16;
+#else
+                    pMemory->mem_bound_check_1byte.u32[0] = totalMemSize - 1;
+                    pMemory->mem_bound_check_2bytes.u32[0] = totalMemSize - 2;
+                    pMemory->mem_bound_check_4bytes.u32[0] = totalMemSize - 4;
+                    pMemory->mem_bound_check_8bytes.u32[0] = totalMemSize - 8;
+                    pMemory->mem_bound_check_16bytes.u32[0] = totalMemSize - 16;
+#endif
                 }
             }
         }
