@@ -15,7 +15,7 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser(description='A tool to compile WASM binary to AOT binary for wamr-ext')
     arg_parser.add_argument('TARGET', type=str, choices=AOT_TARGETS, help='AOT target')
     arg_parser.add_argument('INPUT_FILE', type=str, help='Input WASM binary file')
-    arg_parser.add_argument('-o', type=str, help='Output file', default='a.aot')
+    arg_parser.add_argument('-o', type=str, help='Output file', required=True)
 
     argv = vars(arg_parser.parse_args())
     aot_target = argv['TARGET']
