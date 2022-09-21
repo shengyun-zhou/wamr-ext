@@ -267,10 +267,12 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
     auto pInst = *inst;
     std::lock_guard<std::mutex> _al(pInst->execFuncLock);
     {
-        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
-        if (pInst->state != WamrExtInstance::STATE_NEW) {
-            snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Instance state error");
-            return -1;
+        {
+            std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+            if (pInst->state != WamrExtInstance::STATE_NEW) {
+                snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Instance state error");
+                return -1;
+            }
         }
         std::vector<const char*> tempPreOpenHostDirs;
         std::vector<const char*> tempPreOpenMapDirs;
