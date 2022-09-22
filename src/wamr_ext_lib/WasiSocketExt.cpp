@@ -129,7 +129,8 @@ namespace WAMR_EXT_NS {
         uv_file uvFD = uv_open_osfhandle((uv_os_fd_t)hostSockFD);
         uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
         uvwasi_fd_wrap_t* pFDWrap = nullptr;
-        uvwasi_errno_t err = uvwasi_fd_table_insert(pUVWasi, pUVWasi->fds, uvFD, "", "", wasiSockType,
+        std::string fakePath = "<socket_" + std::to_string(uvFD) + '>';
+        uvwasi_errno_t err = uvwasi_fd_table_insert(pUVWasi, pUVWasi->fds, uvFD, fakePath.c_str(), fakePath.c_str(), wasiSockType,
                                                     UVWASI__RIGHTS_SOCKET_BASE, UVWASI__RIGHTS_ALL, 0, &pFDWrap);
         if (err != 0) {
             uv_fs_t req;
