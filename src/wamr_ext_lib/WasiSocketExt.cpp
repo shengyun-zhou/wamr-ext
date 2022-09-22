@@ -850,6 +850,7 @@ namespace WAMR_EXT_NS {
         *pAppNEvents = 0;
         if (appSubCount == 0)
             return 0;
+        memset(pAppOutEvent, 0, sizeof(*pAppOutEvent) * appSubCount);
 
         uint64_t timeoutNanoSec = UINT64_MAX;
         const uvwasi_subscription_t* pTimeoutSub = nullptr;
