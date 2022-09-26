@@ -78,8 +78,6 @@ namespace WAMR_EXT_NS {
             strcmp(moduleName, "wamr_ext") == 0) {
             return EINVAL;
         }
-        if (wasm_runtime_is_module_registered(moduleName))
-            return EEXIST;
         return 0;
     }
 
@@ -106,8 +104,6 @@ namespace WAMR_EXT_NS {
                     pAOTModule->memories[0].mem_max_page_count = pAOTModule->memories[0].mem_init_page_count + 1;
                 }
             }
-            if (!wasm_runtime_register_module(moduleName, wasmModule, gLastErrorStr, sizeof(gLastErrorStr)))
-                break;
             *module = new WamrExtModule(pModuleBuf, wasmModule, moduleName);
             return 0;
         } while (false);
@@ -327,15 +323,6 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
         pInst->wasmExecEnvMap[pInst->pMainModule->moduleName] = wasmMainExecEnv;
         if (pInst->wasmMainInstance->module_type == Wasm_Module_Bytecode) {
             auto* pByteCodeInst = (WASMModuleInstance*)pInst->wasmMainInstance;
-            for (auto* pSubModuleNode = (WASMSubModInstNode*)bh_list_first_elem(pByteCodeInst->sub_module_inst_list); pSubModuleNode;
-                 pSubModuleNode = (WASMSubModInstNode*)bh_list_elem_next(pSubModuleNode)) {
-                wasmMainExecEnv = wasm_runtime_create_exec_env((wasm_module_inst_t)pSubModuleNode->module_inst, STACK_SIZE);
-                if (!wasmMainExecEnv) {
-                    snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Failed to create exec env for sub module %s", pSubModuleNode->module_name);
-                    return -1;
-                }
-                pInst->wasmExecEnvMap[pSubModuleNode->module_name] = wasmMainExecEnv;
-            }
             auto* pMemory = pByteCodeInst->default_memory;
             assert(pMemory->heap_data == pMemory->heap_data_end && !pMemory->heap_handle);   // No app heap
             assert(pMemory->num_bytes_per_page == 64 * 1024);
@@ -354,7 +341,8 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                         return -1;
                     }
                     pMemory->memory_data = pNewMem;
-                    pMemory->memory_data_end = pMemory->memory_data + totalMemSize;
+                    pMemory->memory_data_size = totalMemSize;
+                    pMemory->memory_data_end = pMemory->memory_data + pMemory->memory_data_size;
                     pMemory->heap_data = pMemory->heap_data_end = pMemory->memory_data + heapOffset;
                     pMemory->cur_page_count = pMemory->max_page_count;
                 }
