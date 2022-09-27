@@ -7,6 +7,7 @@
 #include "../wamr_ext_lib/WasiProcessExt.h"
 #include <wasm_runtime.h>
 #include <aot/aot_runtime.h>
+#include <mem_alloc.h>
 #include "../base/LoopThread.h"
 
 namespace WAMR_EXT_NS {
@@ -60,6 +61,7 @@ namespace WAMR_EXT_NS {
             }
             case WAMR_EXT_INST_OPT_MAX_MEMORY: {
                 uint32_t maxMem = *((uint32_t*)value);
+                maxMem = maxMem / WASM_PAGE_SIZE * WASM_PAGE_SIZE;
                 if (maxMem == 0)
                     ret = EINVAL;
                 else
@@ -90,20 +92,6 @@ namespace WAMR_EXT_NS {
         if (!wasmModule)
             return -1;
         do {
-            // Set small memory here for dynamic enlarging during instantiation later
-            if (wasmModule->module_type == Wasm_Module_Bytecode) {
-                auto* pWasmByteCodeModule = (WASMModule*)wasmModule;
-                if (pWasmByteCodeModule->memory_count > 0) {
-                    assert(pWasmByteCodeModule->memory_count == 1);
-                    pWasmByteCodeModule->memories[0].max_page_count = pWasmByteCodeModule->memories[0].init_page_count + 1;
-                }
-            } else if (wasmModule->module_type == Wasm_Module_AoT) {
-                auto* pAOTModule = (AOTModule*)wasmModule;
-                if (pAOTModule->memory_count > 0) {
-                    assert(pAOTModule->memory_count == 1);
-                    pAOTModule->memories[0].mem_max_page_count = pAOTModule->memories[0].mem_init_page_count + 1;
-                }
-            }
             *module = new WamrExtModule(pModuleBuf, wasmModule, moduleName);
             return 0;
         } while (false);
@@ -309,9 +297,9 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                                       const_cast<char**>(tempArgv.data()), tempArgv.size(),
                                       newStdinFD, newStdOutFD, newStdErrFD);
         wasm_runtime_set_max_thread_num(pInst->config.maxThreadNum);
-        // No app heap size for each module
         const int STACK_SIZE = 64 * 1024;
-        pInst->wasmMainInstance = wasm_runtime_instantiate(pInst->pMainModule->wasmModule, STACK_SIZE, 0,
+        // Set app heap size to WASM_PAGE_SIZE here, it will be enlarged later
+        pInst->wasmMainInstance = wasm_runtime_instantiate(pInst->pMainModule->wasmModule, STACK_SIZE, WASM_PAGE_SIZE,
                                                            WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
         if (!pInst->wasmMainInstance)
             return -1;
@@ -324,67 +312,77 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
         if (pInst->wasmMainInstance->module_type == Wasm_Module_Bytecode) {
             auto* pByteCodeInst = (WASMModuleInstance*)pInst->wasmMainInstance;
             auto* pMemory = pByteCodeInst->default_memory;
-            assert(pMemory->heap_data == pMemory->heap_data_end && !pMemory->heap_handle);   // No app heap
-            assert(pMemory->num_bytes_per_page == 64 * 1024);
-            auto newMaxPageCount = std::max<uint32_t>(pInst->config.maxMemory / pMemory->num_bytes_per_page, 1);
-            if (newMaxPageCount > pMemory->max_page_count) {
-                pMemory->max_page_count = newMaxPageCount;
-                if (pMemory->is_shared) {
-                    // Allocate new memory but don't touch it to reduce process RSS
-                    uint32_t heapOffset = pMemory->heap_data - pMemory->memory_data;
-                    uint32_t totalMemSize = pMemory->num_bytes_per_page * newMaxPageCount;
-                    uint8_t* pNewMem = (uint8_t*)wasm_runtime_realloc(pMemory->memory_data, pMemory->num_bytes_per_page * newMaxPageCount);
-                    if (!pNewMem) {
-                        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot allocate %uB memory for instance\n", totalMemSize);
-                        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
-                        pInst->state = WamrExtInstance::STATE_ENDED;
-                        return -1;
-                    }
-                    pMemory->memory_data = pNewMem;
-                    pMemory->memory_data_size = totalMemSize;
-                    pMemory->memory_data_end = pMemory->memory_data + pMemory->memory_data_size;
-                    pMemory->heap_data = pMemory->heap_data_end = pMemory->memory_data + heapOffset;
-                    pMemory->cur_page_count = pMemory->max_page_count;
+            assert(pMemory->heap_data < pMemory->heap_data_end && pMemory->heap_handle);
+            if (pInst->config.maxMemory > pMemory->max_page_count * pMemory->num_bytes_per_page) {
+                assert(pMemory->max_page_count == pMemory->cur_page_count == 1);
+                uint32_t heapOffset = pMemory->heap_data - pMemory->memory_data;
+                uint32_t heapSize = (pMemory->heap_data_end - pMemory->heap_data) + (pInst->config.maxMemory - pMemory->max_page_count * pMemory->num_bytes_per_page);
+                pMemory->num_bytes_per_page = pInst->config.maxMemory;
+                mem_allocator_destroy(pMemory->heap_handle);
+                auto pHeapHandler = pMemory->heap_handle;
+                pMemory->heap_handle = nullptr;
+                // Allocate new memory but don't touch it to reduce process RSS
+                uint8_t* pNewMem = (uint8_t*)wasm_runtime_realloc(pMemory->memory_data, pInst->config.maxMemory);
+                if (!pNewMem) {
+                    snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot allocate %uB memory for instance\n", pInst->config.maxMemory);
+                    std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+                    pInst->state = WamrExtInstance::STATE_ENDED;
+                    return -1;
                 }
+                pMemory->memory_data = pNewMem;
+                pMemory->memory_data_size = pInst->config.maxMemory;
+                pMemory->memory_data_end = pMemory->memory_data + pMemory->memory_data_size;
+                pMemory->heap_data = pMemory->memory_data + heapOffset;
+                pMemory->heap_data_end = pMemory->heap_data + heapSize;
+                mem_allocator_create_with_struct_and_pool(pHeapHandler, mem_allocator_get_heap_struct_size(),
+                                                          reinterpret_cast<char*>(pMemory->heap_data), heapSize);
+                pMemory->heap_handle = pHeapHandler;
             }
         } else if (pInst->wasmMainInstance->module_type == Wasm_Module_AoT) {
             auto* pAOTInst = (AOTModuleInstance*)pInst->wasmMainInstance;
             auto* pMemory = ((AOTMemoryInstance**)pAOTInst->memories.ptr)[0];
-            assert(pMemory->heap_data.ptr == pMemory->heap_data_end.ptr && !pMemory->heap_handle.ptr);   // No app heap
-            assert(pMemory->num_bytes_per_page == 64 * 1024);
-            auto newMaxPageCount = std::max<uint32_t>(pInst->config.maxMemory / pMemory->num_bytes_per_page, 1);
-            if (newMaxPageCount > pMemory->max_page_count) {
-                pMemory->max_page_count = newMaxPageCount;
-                if (pMemory->is_shared) {
-                    // Allocate new memory but don't touch it to reduce process RSS
-                    uint32_t heapOffset = (uint8_t*)pMemory->heap_data.ptr - (uint8_t*)pMemory->memory_data.ptr;
-                    uint32_t totalMemSize = pMemory->num_bytes_per_page * newMaxPageCount;
-                    uint8_t* pNewMem = (uint8_t*)wasm_runtime_realloc(pMemory->memory_data.ptr, pMemory->num_bytes_per_page * newMaxPageCount);
-                    if (!pNewMem) {
-                        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Cannot allocate %uB memory for instance\n", totalMemSize);
-                        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
-                        pInst->state = WamrExtInstance::STATE_ENDED;
-                        return -1;
-                    }
-                    pMemory->memory_data.ptr = pNewMem;
-                    pMemory->memory_data_size = totalMemSize;
-                    pMemory->memory_data_end.ptr = (uint8_t*)pMemory->memory_data.ptr + pMemory->memory_data_size;
-                    pMemory->heap_data.ptr = pMemory->heap_data_end.ptr = (uint8_t*)pMemory->memory_data.ptr + heapOffset;
-                    pMemory->cur_page_count = pMemory->max_page_count;
-#if UINTPTR_MAX == UINT64_MAX
-                    pMemory->mem_bound_check_1byte.u64 = totalMemSize - 1;
-                    pMemory->mem_bound_check_2bytes.u64 = totalMemSize - 2;
-                    pMemory->mem_bound_check_4bytes.u64 = totalMemSize - 4;
-                    pMemory->mem_bound_check_8bytes.u64 = totalMemSize - 8;
-                    pMemory->mem_bound_check_16bytes.u64 = totalMemSize - 16;
-#else
-                    pMemory->mem_bound_check_1byte.u32[0] = totalMemSize - 1;
-                    pMemory->mem_bound_check_2bytes.u32[0] = totalMemSize - 2;
-                    pMemory->mem_bound_check_4bytes.u32[0] = totalMemSize - 4;
-                    pMemory->mem_bound_check_8bytes.u32[0] = totalMemSize - 8;
-                    pMemory->mem_bound_check_16bytes.u32[0] = totalMemSize - 16;
-#endif
+            assert(pMemory->heap_data.ptr < pMemory->heap_data_end.ptr && pMemory->heap_handle.ptr);
+            if (pInst->config.maxMemory > pMemory->max_page_count * pMemory->num_bytes_per_page) {
+                assert(pMemory->max_page_count == pMemory->cur_page_count == 1);
+                uint32_t heapOffset = (uint8_t *) pMemory->heap_data.ptr - (uint8_t *) pMemory->memory_data.ptr;
+                uint32_t heapSize = ((uint8_t *) pMemory->heap_data_end.ptr - (uint8_t *) pMemory->heap_data.ptr) +
+                                    (pInst->config.maxMemory - pMemory->max_page_count * pMemory->num_bytes_per_page);
+                pMemory->num_bytes_per_page = pInst->config.maxMemory;
+                mem_allocator_destroy(pMemory->heap_handle.ptr);
+                auto pHeapHandler = pMemory->heap_handle.ptr;
+                pMemory->heap_handle.ptr = nullptr;
+                // Allocate new memory but don't touch it to reduce process RSS
+                uint32_t totalMemSize = pInst->config.maxMemory;
+                uint8_t *pNewMem = (uint8_t *) wasm_runtime_realloc(pMemory->memory_data.ptr, totalMemSize);
+                if (!pNewMem) {
+                    snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr),
+                             "Cannot allocate %uB memory for instance\n", pInst->config.maxMemory);
+                    std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+                    pInst->state = WamrExtInstance::STATE_ENDED;
+                    return -1;
                 }
+                pMemory->memory_data.ptr = pNewMem;
+                pMemory->memory_data_size = totalMemSize;
+                pMemory->memory_data_end.ptr = (uint8_t *) pMemory->memory_data.ptr + pMemory->memory_data_size;
+                pMemory->heap_data.ptr = (uint8_t *) pMemory->memory_data.ptr + heapOffset;
+                pMemory->heap_data_end.ptr = (uint8_t *) pMemory->heap_data.ptr + heapSize;
+                mem_allocator_create_with_struct_and_pool(pHeapHandler, mem_allocator_get_heap_struct_size(),
+                                                          reinterpret_cast<char *>(pMemory->heap_data.ptr), heapSize);
+                pMemory->heap_handle.ptr = pHeapHandler;
+
+#if UINTPTR_MAX == UINT64_MAX
+                pMemory->mem_bound_check_1byte.u64 = totalMemSize - 1;
+                pMemory->mem_bound_check_2bytes.u64 = totalMemSize - 2;
+                pMemory->mem_bound_check_4bytes.u64 = totalMemSize - 4;
+                pMemory->mem_bound_check_8bytes.u64 = totalMemSize - 8;
+                pMemory->mem_bound_check_16bytes.u64 = totalMemSize - 16;
+#else
+                pMemory->mem_bound_check_1byte.u32[0] = totalMemSize - 1;
+                pMemory->mem_bound_check_2bytes.u32[0] = totalMemSize - 2;
+                pMemory->mem_bound_check_4bytes.u32[0] = totalMemSize - 4;
+                pMemory->mem_bound_check_8bytes.u32[0] = totalMemSize - 8;
+                pMemory->mem_bound_check_16bytes.u32[0] = totalMemSize - 16;
+#endif
             }
         }
         for (const auto& p : pInst->wasmExecEnvMap)

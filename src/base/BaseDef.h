@@ -26,6 +26,7 @@
 #include <wasm_runtime_common.h>
 
 #define WAMR_EXT_NS wamr_ext
+#define WASM_PAGE_SIZE (64 * 1024)
 
 #ifdef _WIN32
 #include <winsock2.h>

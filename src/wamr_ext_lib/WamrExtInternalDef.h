@@ -10,7 +10,7 @@ struct WamrExtInstanceConfig {
     std::map<std::string, std::string> envVars;
     std::map<std::string, std::string> hostCmdWhitelist;
     std::vector<std::string> args;
-    uint32_t maxMemory{4194304};
+    uint32_t maxMemory{4194304 / WASM_PAGE_SIZE * WASM_PAGE_SIZE};
     WamrExtInstanceExceptionCB exceptionCB{.func = nullptr};
 
     WamrExtInstanceConfig();
