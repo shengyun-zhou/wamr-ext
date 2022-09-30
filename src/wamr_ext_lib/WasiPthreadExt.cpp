@@ -185,9 +185,11 @@ namespace WAMR_EXT_NS {
             if (allThreadInfo.empty())
                 break;
             for (const auto& pThreadInfo : allThreadInfo)
+                CancelAppThread(pThreadInfo->pExecEnv);
+            for (const auto& pThreadInfo : allThreadInfo)
                 DoHostThreadJoin(pManager, pThreadInfo);
         }
-        DoHostThreadExit(pMainExecEnv);
+        DoAppThreadExit(pMainExecEnv);
         assert(pManager->m_threadMap.size() == 1);
     }
 
@@ -225,7 +227,7 @@ namespace WAMR_EXT_NS {
         }
     }
 
-    void WasiPthreadExt::DoHostThreadExit(wasm_exec_env_t pExecEnv) {
+    void WasiPthreadExt::DoAppThreadExit(wasm_exec_env_t pExecEnv) {
         auto* pManager = GetInstPthreadManager(pExecEnv);
         auto* pThreadInfo = GetExecEnvThreadInfo(pExecEnv);
         const char* exception = wasm_runtime_get_exception(get_module_inst(pExecEnv));
@@ -255,29 +257,8 @@ namespace WAMR_EXT_NS {
         }
         if (pThreadInfo->handleID == PTHREAD_EXT_MAIN_THREAD_ID)
             return;
-        // Free stack
-        if (!pThreadInfo->stackCtrl.bStackFromApp)
-            wasm_runtime_module_free(get_module_inst(pExecEnv), pThreadInfo->stackCtrl.appStackAddr);
-        bool bDelThreadInfo = false;
-        {
-            std::unique_lock al(pThreadInfo->exitCtrl.exitLock);
-            bDelThreadInfo = pThreadInfo->exitCtrl.bAppDetached;
-            if (pThreadInfo->exitCtrl.waitCount == 0) {
-                pthread_detach(pThreadInfo->hostThreadHandler);
-                pThreadInfo->exitCtrl.waitCount = -1;
-            } else {
-                pThreadInfo->exitCtrl.exitCV.notify_all();
-                bDelThreadInfo = false;
-            }
-            wasm_runtime_deinstantiate_internal(get_module_inst(pExecEnv), true);
-            wasm_exec_env_destroy(pExecEnv);
-        }
-        if (bDelThreadInfo) {
-            std::lock_guard<std::mutex> _al(pManager->m_threadMapLock);
-            auto tempID = pThreadInfo->handleID;
-            pManager->m_threadMap.erase(tempID);
-        }
-        pthread_exit(nullptr);
+        // Mark this app thread terminated, then the interpreter will also stop after return.
+        CancelAppThread(pExecEnv);
     }
 
     void WasiPthreadExt::GetTimeoutTimespec(struct timespec &ts, uint64_t useconds) {
@@ -373,6 +354,28 @@ namespace WAMR_EXT_NS {
                 argv[0] = pThreadInfo->appStartArg.funcArg;
                 wasm_runtime_call_indirect(pNewExecEnv, pThreadInfo->appStartArg.appStartFunc, 1, argv);
                 WasiPthreadExt::PthreadExit(pNewExecEnv, argv[0]);
+                // Free app stack
+                if (!pThreadInfo->stackCtrl.bStackFromApp)
+                    wasm_runtime_module_free(get_module_inst(pNewExecEnv), pThreadInfo->stackCtrl.appStackAddr);
+                bool bDelThreadInfo = false;
+                {
+                    std::unique_lock al(pThreadInfo->exitCtrl.exitLock);
+                    bDelThreadInfo = pThreadInfo->exitCtrl.bAppDetached;
+                    if (pThreadInfo->exitCtrl.waitCount == 0) {
+                        pthread_detach(pThreadInfo->hostThreadHandler);
+                        pThreadInfo->exitCtrl.waitCount = -1;
+                    } else {
+                        pThreadInfo->exitCtrl.exitCV.notify_all();
+                        bDelThreadInfo = false;
+                    }
+                    wasm_runtime_deinstantiate_internal(get_module_inst(pNewExecEnv), true);
+                    wasm_exec_env_destroy(pNewExecEnv);
+                }
+                if (bDelThreadInfo) {
+                    std::lock_guard<std::mutex> _al(pManager->m_threadMapLock);
+                    auto tempID = pThreadInfo->handleID;
+                    pManager->m_threadMap.erase(tempID);
+                }
                 return nullptr;
             }, pNewWasmExecEnv));
         } while (false);
@@ -404,7 +407,7 @@ namespace WAMR_EXT_NS {
             return 0;
         }
         pThreadInfo->exitCtrl.appRetValAddr = retval;
-        DoHostThreadExit(pExecEnv);
+        DoAppThreadExit(pExecEnv);
         return 0;
     }
 

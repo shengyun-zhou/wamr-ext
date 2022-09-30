@@ -70,7 +70,8 @@ namespace WAMR_EXT_NS {
         static InstancePthreadManager::ExecEnvThreadInfo* GetExecEnvThreadInfo(wasm_exec_env_t pExecEnv);
         static InstancePthreadManager* GetInstPthreadManager(wasm_exec_env_t pExecEnv);
         static void DoHostThreadJoin(InstancePthreadManager* pManager, const std::shared_ptr<InstancePthreadManager::ExecEnvThreadInfo>& pThreadInfo);
-        static void DoHostThreadExit(wasm_exec_env_t pExecEnv);
+        static void CancelAppThread(wasm_exec_env_t pExecEnv) { pExecEnv->suspend_flags.flags |= 0x01; }
+        static void DoAppThreadExit(wasm_exec_env_t pExecEnv);
         static void GetTimeoutTimespec(struct timespec& ts, uint64_t useconds);
 
         static int32_t PthreadCreate(wasm_exec_env_t pExecEnv, void* _pAppCreateThreadReq);
