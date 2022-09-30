@@ -23,8 +23,6 @@ extern "C" {
 #endif
 
 enum WamrExtInstanceOpt {
-    // Set maximum thread number, value type: uint32_t*
-    WAMR_EXT_INST_OPT_MAX_THREAD_NUM = 1,
     // Add host dir for WAsm app, value type: WamrExtKeyValueSS*
     WAMR_EXT_INST_OPT_ADD_HOST_DIR = 2,
     // Add environment variable for WAsm app, value type: WamrExtKeyValueSS*

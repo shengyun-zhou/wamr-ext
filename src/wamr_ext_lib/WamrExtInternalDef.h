@@ -5,7 +5,6 @@
 #include "wamr_ext_api.h"
 
 struct WamrExtInstanceConfig {
-    uint8_t maxThreadNum{4};
     std::map<std::string, std::string> preOpenDirs;     // mapped dir -> host dir
     std::map<std::string, std::string> envVars;
     std::map<std::string, std::string> hostCmdWhitelist;
@@ -42,7 +41,7 @@ struct WamrExtInstance {
     WamrExtInstanceConfig config;
     wasm_module_inst_t wasmMainInstance{nullptr};
     std::mutex execFuncLock;
-    std::unordered_map<std::string, wasm_exec_env_t> wasmExecEnvMap;
+    wasm_exec_env_t pMainExecEnv{nullptr};
     WAMR_EXT_NS::WasiPthreadExt::InstancePthreadManager wasiPthreadManager;
     WAMR_EXT_NS::WasiProcessExt::ProcManager wasiProcessManager;
 
@@ -96,6 +95,17 @@ namespace WAMR_EXT_NS {
 
             __EXT_SYSCALL_PTHREAD_HOST_SETNAME = 130,
 
+            __EXT_SYSCALL_PTHREAD_CREATE = 140,
+            __EXT_SYSCALL_PTHREAD_SELF = 141,
+            __EXT_SYSCALL_PTHREAD_EXIT = 142,
+            __EXT_SYSCALL_PTHREAD_JOIN = 143,
+            __EXT_SYSCALL_PTHREAD_DETACH = 144,
+
+            __EXT_SYSCALL_PTHREAD_KEY_CREATE = 150,
+            __EXT_SYSCALL_PTHREAD_KEY_DELETE = 151,
+            __EXT_SYSCALL_PTHREAD_SETSPECIFIC = 152,
+            __EXT_SYSCALL_PTHREAD_GETSPECIFIC = 153,
+
             // Filesystem ext
             __EXT_SYSCALL_FD_STATVFS = 200,
             __EXT_SYSCALL_FD_EXT_FCNTL = 201,
@@ -148,6 +158,13 @@ namespace WAMR_EXT_NS {
     struct ExtSyscall_P : public ExtSyscallBase {
     public:
         ExtSyscall_P(void* pFunc) : ExtSyscallBase("*", pFunc) {}
+    protected:
+        int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
+    };
+
+    struct ExtSyscall_U32 : public ExtSyscallBase {
+    public:
+        ExtSyscall_U32(void* pFunc) : ExtSyscallBase("i", pFunc) {}
     protected:
         int32_t DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) override;
     };

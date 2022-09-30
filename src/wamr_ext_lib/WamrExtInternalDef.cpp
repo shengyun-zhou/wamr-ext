@@ -60,6 +60,10 @@ namespace WAMR_EXT_NS {
         return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer);
     }
 
+    int32_t ExtSyscall_U32::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
+        return reinterpret_cast<int32_t(*)(wasm_exec_env_t, uint32_t)>(m_pFunc)(pExecEnv, appArgv[0].u32);
+    }
+
     int32_t ExtSyscall_S::DoSyscall(wasm_exec_env_t pExecEnv, wasi::wamr_ext_syscall_arg *appArgv) {
         return reinterpret_cast<int32_t(*)(wasm_exec_env_t, void*)>(m_pFunc)(pExecEnv, appArgv[0].native_pointer);
     }

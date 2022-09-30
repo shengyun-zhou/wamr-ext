@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
     const char* version = nullptr;
     wamr_ext_version(&version, nullptr);
     argparse::ArgumentParser ap("wamr_ext_miniapp", version);
-    ap.add_argument("--max-threads").help("maximum thread number").scan<'i', int>().default_value(0);
     ap.add_argument("--max-memory").help("maximum memory").scan<'i', int>().default_value(0);
     ap.add_argument("--dir").default_value<std::vector<std::string>>({}).append().
         help("map host directories to the path accessed by Wasm app, eg: --dir /host/p1:/wasm/p1 --dir /host/p2:/wasm/p2");
@@ -35,7 +34,6 @@ int main(int argc, char** argv) {
         std::cerr << ap;
         std::exit(1);
     }
-    int32_t maxThreadNum = ap.get<int>("--max-threads");
     int32_t maxMemory = ap.get<int>("--max-memory");
     std::vector<std::string> progArgs = ap.get<std::vector<std::string>>("file_and_args");
     std::string wasmAppFile = progArgs.front();
@@ -51,8 +49,6 @@ int main(int argc, char** argv) {
         printf("Failed to load wasm app %s: %s\n", wasmAppFile.c_str(), wamr_ext_strerror(err));
         return err;
     }
-    if (maxThreadNum > 0)
-        wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_MAX_THREAD_NUM, &maxThreadNum);
     if (maxMemory > 0)
         wamr_ext_module_set_inst_default_opt(&module, WAMR_EXT_INST_OPT_MAX_MEMORY, &maxMemory);
     auto mapDirs = ap.get<std::vector<std::string>>("--dir");

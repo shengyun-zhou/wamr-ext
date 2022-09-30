@@ -21,14 +21,6 @@ namespace WAMR_EXT_NS {
             return EINVAL;
         int32_t ret = 0;
         switch (opt) {
-            case WAMR_EXT_INST_OPT_MAX_THREAD_NUM: {
-                uint32_t maxThreadNum = *((uint32_t*)value);
-                if (maxThreadNum > 30)
-                    ret = EINVAL;
-                else
-                    config.maxThreadNum = maxThreadNum;
-                break;
-            }
             case WAMR_EXT_INST_OPT_ADD_HOST_DIR: {
                 WamrExtKeyValueSS* kv = (WamrExtKeyValueSS*)value;
                 // v: mapped dir, k: host dir
@@ -296,19 +288,16 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
                                       tempEnvVars.data(), tempEnvVars.size(),
                                       const_cast<char**>(tempArgv.data()), tempArgv.size(),
                                       newStdinFD, newStdOutFD, newStdErrFD);
-        wasm_runtime_set_max_thread_num(pInst->config.maxThreadNum);
-        const int STACK_SIZE = 64 * 1024;
         // Set app heap size to WASM_PAGE_SIZE here, it will be enlarged later
-        pInst->wasmMainInstance = wasm_runtime_instantiate(pInst->pMainModule->wasmModule, STACK_SIZE, WASM_PAGE_SIZE,
+        pInst->wasmMainInstance = wasm_runtime_instantiate(pInst->pMainModule->wasmModule, WASM_INST_OPER_STACK_SIZE, WASM_PAGE_SIZE,
                                                            WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr));
         if (!pInst->wasmMainInstance)
             return -1;
-        auto wasmMainExecEnv = wasm_runtime_create_exec_env(pInst->wasmMainInstance, STACK_SIZE);
-        if (!wasmMainExecEnv) {
+        pInst->pMainExecEnv = wasm_runtime_create_exec_env(pInst->wasmMainInstance, WASM_INST_OPER_STACK_SIZE);
+        if (!pInst->pMainExecEnv) {
             snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "Failed to create exec env for main module %s", pInst->pMainModule->moduleName.c_str());
             return -1;
         }
-        pInst->wasmExecEnvMap[pInst->pMainModule->moduleName] = wasmMainExecEnv;
         if (pInst->wasmMainInstance->module_type == Wasm_Module_Bytecode) {
             auto* pByteCodeInst = (WASMModuleInstance*)pInst->wasmMainInstance;
             auto* pMemory = pByteCodeInst->default_memory;
@@ -385,8 +374,8 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
 #endif
             }
         }
-        for (const auto& p : pInst->wasmExecEnvMap)
-            wasm_runtime_set_custom_data(get_module_inst(p.second), pInst);
+        wasm_runtime_set_custom_data(get_module_inst(pInst->pMainExecEnv), pInst);
+        WAMR_EXT_NS::WasiPthreadExt::InitAppMainThreadInfo(pInst->pMainExecEnv);
     }
     wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "_initialize", "()");
     if (!wasmFuncInst) {
@@ -395,7 +384,7 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
         pInst->state = WamrExtInstance::STATE_ENDED;
         return -1;
     }
-    if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 0, nullptr, 0, nullptr)) {
+    if (!wasm_runtime_call_wasm_a(pInst->pMainExecEnv, wasmFuncInst, 0, nullptr, 0, nullptr)) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
         std::lock_guard<std::mutex> instAL(pInst->instanceLock);
         pInst->state = WamrExtInstance::STATE_ENDED;
@@ -424,7 +413,7 @@ WAMR_EXT_API int32_t wamr_ext_instance_exec_main_func(wamr_ext_instance_t* inst,
         return -1;
     }
     wasm_val_t wasmRetVal;
-    if (!wasm_runtime_call_wasm_a(pInst->wasmExecEnvMap[pInst->pMainModule->moduleName], wasmFuncInst, 1, &wasmRetVal, 0, nullptr)) {
+    if (!wasm_runtime_call_wasm_a(pInst->pMainExecEnv, wasmFuncInst, 1, &wasmRetVal, 0, nullptr)) {
         snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
         return -1;
     }
@@ -448,13 +437,13 @@ WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst) {
         bRunDtor = pInst->state == WamrExtInstance::STATE_STARTED;
         pInst->state = WamrExtInstance::STATE_DESTROYING;
     }
+    if (pInst->pMainExecEnv)
+        WAMR_EXT_NS::WasiPthreadExt::CleanupAppThreadInfo(pInst->pMainExecEnv);
     if (bRunDtor) {
-        for (const auto &p: pInst->wasmExecEnvMap) {
-            auto wasmInst = get_module_inst(p.second);
-            wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(wasmInst, "__wasm_call_dtors", "()");
-            if (wasmFuncInst)
-                wasm_runtime_call_wasm_a(p.second, wasmFuncInst, 0, nullptr, 0, nullptr);
-        }
+        auto wasmInst = get_module_inst(pInst->pMainExecEnv);
+        wasm_function_inst_t wasmFuncInst = wasm_runtime_lookup_function(wasmInst, "__wasm_call_dtors", "()");
+        if (wasmFuncInst)
+            wasm_runtime_call_wasm_a(pInst->pMainExecEnv, wasmFuncInst, 0, nullptr, 0, nullptr);
     }
     if (pInst->wasmMainInstance) {
         // Close all FDs opened by app
@@ -471,9 +460,9 @@ WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst) {
         for (auto appFD : appFDs)
             uvwasi_fd_close(pUVWasi, appFD);
     }
-    for (const auto& p : pInst->wasmExecEnvMap)
-        wasm_exec_env_destroy(p.second);
-    pInst->wasmExecEnvMap.clear();
+    if (pInst->pMainExecEnv)
+        wasm_exec_env_destroy(pInst->pMainExecEnv);
+    pInst->pMainExecEnv = nullptr;
     if (pInst->wasmMainInstance)
         wasm_runtime_deinstantiate(pInst->wasmMainInstance);
     pInst->wasmMainInstance = nullptr;
