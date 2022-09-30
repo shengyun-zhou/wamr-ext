@@ -230,14 +230,14 @@ namespace WAMR_EXT_NS {
         auto* pThreadInfo = GetExecEnvThreadInfo(pExecEnv);
         const char* exception = wasm_runtime_get_exception(get_module_inst(pExecEnv));
         if (exception) {
+            /* skip "Exception: " */
+            exception += 11;
             if (pThreadInfo->handleID != PTHREAD_EXT_MAIN_THREAD_ID) {
-                char newException[256];
-                snprintf(newException, sizeof(newException), "(thread %u)%s", Utility::GetCurrentThreadID(), exception);
                 // Spread exception info
                 std::lock_guard<std::mutex> _al(pManager->m_threadMapLock);
                 for (const auto &it: pManager->m_threadMap) {
                     if (it.second->pExecEnv != pExecEnv)
-                        wasm_runtime_set_exception(get_module_inst(it.second->pExecEnv), newException);
+                        wasm_runtime_set_exception(get_module_inst(it.second->pExecEnv), exception);
                 }
             }
         } else {
@@ -302,7 +302,7 @@ namespace WAMR_EXT_NS {
         if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppCreateThreadReq, sizeof(wasi::wamr_create_thread_req)))
             return UVWASI_EFAULT;
         auto* pAppCreateThreadReq = (wasi::wamr_create_thread_req*)_pAppCreateThreadReq;
-        if (pAppCreateThreadReq->app_start_func == 0 || pAppCreateThreadReq->stack_size <= 0)
+        if (pAppCreateThreadReq->app_start_func == 0 || pAppCreateThreadReq->stack_size < 2048)
             return UVWASI_EINVAL;
         if (pAppCreateThreadReq->app_stack_addr) {
             if (!wasm_runtime_validate_app_addr(pWasmModuleInst, pAppCreateThreadReq->app_stack_addr, pAppCreateThreadReq->stack_size))
@@ -332,6 +332,8 @@ namespace WAMR_EXT_NS {
             pThreadInfo->stackCtrl.appStackAddr = pAppCreateThreadReq->app_stack_addr;
             pThreadInfo->stackCtrl.bStackFromApp = pThreadInfo->stackCtrl.appStackAddr;
             if (!pThreadInfo->stackCtrl.bStackFromApp) {
+                // Allocate 16 bytes more space here for alignment later
+                pThreadInfo->stackCtrl.stackSize += 16;
                 void* _pAddr;
                 pThreadInfo->stackCtrl.appStackAddr = wasm_runtime_module_malloc(pWasmModuleInst, pThreadInfo->stackCtrl.stackSize, &_pAddr);
                 if (pThreadInfo->stackCtrl.appStackAddr == 0) {
@@ -341,19 +343,15 @@ namespace WAMR_EXT_NS {
                 }
             }
             pThreadInfo->exitCtrl.bAppDetached = pAppCreateThreadReq->thread_detached;
-            // Set stack
-            pNewWasmExecEnv->aux_stack_boundary.boundary = pThreadInfo->stackCtrl.appStackAddr;
-            pNewWasmExecEnv->aux_stack_bottom.bottom = pThreadInfo->stackCtrl.appStackAddr + pThreadInfo->stackCtrl.stackSize;
-            if (pNewWasmExecEnv->module_inst->module_type == Wasm_Module_Bytecode) {
-                auto* pBytecodeInst = (WASMModuleInstance*)pNewWasmExecEnv->module_inst;
-                uint8_t *globalAddr = pBytecodeInst->global_data
-                                      + pBytecodeInst->globals[pBytecodeInst->module->aux_stack_top_global_index].data_offset;
-                *(uint32_t*)globalAddr = pNewWasmExecEnv->aux_stack_bottom.bottom;
-            } else if (pNewWasmExecEnv->module_inst->module_type == Wasm_Module_AoT) {
-                auto* pAOTInst = (AOTModuleInstance*)pNewWasmExecEnv->module_inst;
-                auto* pAOTModule = (AOTModule*)pAOTInst->aot_module.ptr;
-                uint8_t* globalAddr = (uint8_t*)pAOTInst->global_data.ptr + pAOTModule->globals[pAOTModule->aux_stack_top_global_index].data_offset;
-                *(uint32_t*)globalAddr = pNewWasmExecEnv->aux_stack_bottom.bottom;
+            {
+                // Make stack address aligned at 16 bytes
+                uint32_t appStackBottom = (pThreadInfo->stackCtrl.appStackAddr + pThreadInfo->stackCtrl.stackSize) / 16 * 16;
+                pThreadInfo->stackCtrl.stackSize = appStackBottom - pThreadInfo->stackCtrl.appStackAddr;
+                if (!wasm_exec_env_set_aux_stack(pNewWasmExecEnv, appStackBottom, pThreadInfo->stackCtrl.stackSize)) {
+                    assert(false);
+                    err = -1;
+                    break;
+                }
             }
             {
                 std::lock_guard<std::mutex> _al(pManager->m_threadMapLock);

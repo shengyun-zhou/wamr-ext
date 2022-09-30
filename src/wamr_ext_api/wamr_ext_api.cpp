@@ -161,6 +161,8 @@ namespace WAMR_EXT_NS {
 }
 
 int32_t wamr_ext_init() {
+    // We will allocate stack from app heap area instead of app stack area for new app threads
+    wasm_runtime_set_max_thread_num(0);
     if (!wasm_runtime_init())
         return -1;
     WAMR_EXT_NS::gExtSyscallMap.reserve(100);
