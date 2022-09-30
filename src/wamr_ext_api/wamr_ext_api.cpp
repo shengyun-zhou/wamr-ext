@@ -5,6 +5,7 @@
 #include "../wamr_ext_lib/WasiFSExt.h"
 #include "../wamr_ext_lib/WasiSocketExt.h"
 #include "../wamr_ext_lib/WasiProcessExt.h"
+#include "../wamr_ext_lib/WasiMiscExt.h"
 #include <wasm_runtime.h>
 #include <aot/aot_runtime.h>
 #include <mem_alloc.h>
@@ -172,6 +173,7 @@ int32_t wamr_ext_init() {
     WAMR_EXT_NS::WasiFSExt::Init();
     WAMR_EXT_NS::WasiSocketExt::Init();
     WAMR_EXT_NS::WasiProcessExt::Init();
+    WAMR_EXT_NS::WasiMiscExt::Init();
     WAMR_EXT_NS::gLoopThread.Start();
     WAMR_EXT_NS::gLoopThread.PostTimerTask(WAMR_EXT_NS::LoopCheckInstanceRoutine, 0, 100);
     return 0;

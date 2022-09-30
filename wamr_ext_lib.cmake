@@ -65,6 +65,7 @@ add_library(wamr_ext_obj OBJECT
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiFSExt.cpp
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiSocketExt.cpp
         ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiProcessExt.cpp
+        ${WAMR_EXT_ROOT_DIR}/src/wamr_ext_lib/WasiMiscExt.cpp
         )
 target_include_directories(wamr_ext_obj PRIVATE ${WAMR_EXT_INCLUDE_DIRS})
 
