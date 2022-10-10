@@ -278,6 +278,8 @@ namespace WAMR_EXT_NS {
         }
     }
 
+#define HOST_THREAD_STACK_SIZE (128 * 1024)
+
     int32_t WasiPthreadExt::PthreadCreate(wasm_exec_env_t pExecEnv, void *_pAppCreateThreadReq) {
         wasm_module_inst_t pWasmModuleInst = get_module_inst(pExecEnv);
         if (!wasm_runtime_validate_native_addr(pWasmModuleInst, _pAppCreateThreadReq, sizeof(wasi::wamr_create_thread_req)))
@@ -345,7 +347,10 @@ namespace WAMR_EXT_NS {
                     }
                 }
             }
-            err = Utility::ConvertErrnoToWasiErrno(pthread_create(&pThreadInfo->hostThreadHandler, nullptr, [](void* _arg)->void* {
+            pthread_attr_t hostThreadAttr;
+            pthread_attr_init(&hostThreadAttr);
+            pthread_attr_setstacksize(&hostThreadAttr, HOST_THREAD_STACK_SIZE);
+            err = Utility::ConvertErrnoToWasiErrno(pthread_create(&pThreadInfo->hostThreadHandler, &hostThreadAttr, [](void* _arg)->void* {
                 wasm_exec_env_t pNewExecEnv = (wasm_exec_env_t)_arg;
                 auto* pThreadInfo = WasiPthreadExt::GetExecEnvThreadInfo(pNewExecEnv);
                 auto* pManager = WasiPthreadExt::GetInstPthreadManager(pNewExecEnv);
@@ -378,6 +383,7 @@ namespace WAMR_EXT_NS {
                 }
                 return nullptr;
             }, pNewWasmExecEnv));
+            pthread_attr_destroy(&hostThreadAttr);
         } while (false);
         if (err != 0) {
             if (pThreadInfo) {
