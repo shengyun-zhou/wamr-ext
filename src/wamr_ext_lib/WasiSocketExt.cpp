@@ -645,17 +645,17 @@ namespace WAMR_EXT_NS {
         sockaddr_storage hostSockAddr;
         hostSockAddr.ss_family = AF_UNSPEC;
 #ifndef _WIN32
-        std::shared_ptr<iovec> pHostIOVec(new iovec[appIOVecCount], std::default_delete<iovec[]>());
+        iovec hostIOVec[appIOVecCount];
         for (uint32_t i = 0; i < appIOVecCount; i++) {
-            pHostIOVec.get()[i].iov_base = wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppIOVec[i].app_buf_offset);
-            pHostIOVec.get()[i].iov_len = pAppIOVec[i].buf_len;
+            hostIOVec[i].iov_base = wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppIOVec[i].app_buf_offset);
+            hostIOVec[i].iov_len = pAppIOVec[i].buf_len;
         }
 
         msghdr hostMsgHdr;
         memset(&hostMsgHdr, 0, sizeof(hostMsgHdr));
         hostMsgHdr.msg_name = &hostSockAddr;
         hostMsgHdr.msg_namelen = sizeof(hostSockAddr);
-        hostMsgHdr.msg_iov = pHostIOVec.get();
+        hostMsgHdr.msg_iov = hostIOVec;
         hostMsgHdr.msg_iovlen = appIOVecCount;
         ssize_t ret = recvmsg(hostSockFD, &hostMsgHdr, hostSockMsgFlags);
         if (ret == -1) {
@@ -702,10 +702,10 @@ namespace WAMR_EXT_NS {
                 return err;
         }
 #ifndef _WIN32
-        std::shared_ptr<iovec> pHostIOVec(new iovec[appIOVecCount], std::default_delete<iovec[]>());
+        iovec hostIOVec[appIOVecCount];
         for (uint32_t i = 0; i < appIOVecCount; i++) {
-            pHostIOVec.get()[i].iov_base = wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppIOVec[i].app_buf_offset);
-            pHostIOVec.get()[i].iov_len = pAppIOVec[i].buf_len;
+            hostIOVec[i].iov_base = wasm_runtime_addr_app_to_native(pWasmModuleInst, pAppIOVec[i].app_buf_offset);
+            hostIOVec[i].iov_len = pAppIOVec[i].buf_len;
         }
 
         msghdr hostMsgHdr;
@@ -714,7 +714,7 @@ namespace WAMR_EXT_NS {
             hostMsgHdr.msg_name = &hostSockAddr;
             hostMsgHdr.msg_namelen = hostSockAddrLen;
         }
-        hostMsgHdr.msg_iov = pHostIOVec.get();
+        hostMsgHdr.msg_iov = hostIOVec;
         hostMsgHdr.msg_iovlen = appIOVecCount;
         ssize_t ret = sendmsg(hostSockFD, &hostMsgHdr, hostSockMsgFlags);
         if (ret == -1) {
