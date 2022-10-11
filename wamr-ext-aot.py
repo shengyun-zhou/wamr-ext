@@ -42,6 +42,7 @@ if __name__ == '__main__':
 
     wamrc_args += [
         '--bounds-checks=1',
+        '--disable-aux-stack-check',
         '--disable-simd',
         '-o', argv['o'],
         argv['INPUT_FILE']
