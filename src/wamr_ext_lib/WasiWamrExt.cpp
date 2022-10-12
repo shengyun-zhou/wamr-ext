@@ -3,6 +3,7 @@
 #include <wasm_runtime.h>
 #include <wasm_runtime_common.h>
 #include <aot/aot_runtime.h>
+#include <mem_alloc.h>
 #include <thread>
 
 namespace WAMR_EXT_NS {
@@ -53,6 +54,26 @@ namespace WAMR_EXT_NS {
             }
             *bufLen = sizeof(totalMemSize);
             memcpy(buf, &totalMemSize, *bufLen);
+            return 0;
+        } else if (strcmp(name, "sysinfo.vm_mem_avail") == 0) {
+            uint64_t availMem = 0;
+            if (*bufLen < sizeof(availMem))
+                return UVWASI_ERANGE;
+            void* pAppHeap = nullptr;
+            if (pWasmModule->module_type == Wasm_Module_Bytecode) {
+                WASMMemoryInstance* memInst = ((WASMModuleInstance*)pWasmModule)->default_memory;
+                pAppHeap = memInst->heap_handle;
+            } else if (pWasmModule->module_type == Wasm_Module_AoT) {
+                AOTMemoryInstance* memInst = ((AOTModuleInstance*)pWasmModule)->global_table_data.memory_instances;
+                pAppHeap = memInst->heap_handle.ptr;
+            }
+            if (pAppHeap) {
+                mem_alloc_info_t allocStatInfo = {0};
+                if (mem_allocator_get_alloc_info(pAppHeap, &allocStatInfo))
+                    availMem = allocStatInfo.total_free_size;
+            }
+            *bufLen = sizeof(availMem);
+            memcpy(buf, &availMem, *bufLen);
             return 0;
         }
         return UVWASI_EINVAL;
