@@ -16,8 +16,8 @@ if (NOT WAMR_BUILD_TARGET)
     message(FATAL_ERROR "WAMR_BUILD_TARGET not defined")
 endif()
 if (WAMR_BUILD_TARGET MATCHES "ARM")
-    # Forced to be armv6 for AOT
-    set(WAMR_BUILD_TARGET ARMV6)
+    # Forced to be armv7 for AOT
+    set(WAMR_BUILD_TARGET ARMV7)
 endif()
 set(WAMR_BUILD_INTERP 1)
 set(WAMR_BUILD_FAST_INTERP 1)

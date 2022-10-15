@@ -26,8 +26,8 @@ if __name__ == '__main__':
     aot_cpu = 'generic'
     aot_cpu_features = ''
     if aot_target.startswith('arm'):
-        aot_arch_target = 'armv6'
-        aot_cpu_features = '+vfp2'
+        aot_arch_target = 'armv7'
+        aot_cpu_features = '-neon'
     elif aot_target.startswith('x86_64'):
         aot_cpu = 'core2'
 
