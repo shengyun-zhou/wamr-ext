@@ -411,6 +411,7 @@ namespace WAMR_EXT_NS {
 #define __WASI_SO_RCVBUF       8
 #define __WASI_SO_KEEPALIVE    9
 #define __WASI_SO_LINGER       13
+#define __WASI_SO_REUSEPORT    15
 #define __WASI_SO_RCVTIMEO     20
 #define __WASI_SO_SNDTIMEO     21
 
@@ -455,6 +456,15 @@ namespace WAMR_EXT_NS {
                     hostOptName = SO_LINGER;
                     hostOptValType = LINGER;
                     break;
+#if defined(__linux__) || defined(SO_REUSEPORT_LB)
+                case __WASI_SO_REUSEPORT:
+#ifdef SO_REUSEPORT_LB
+                    hostOptName = SO_REUSEPORT_LB;
+#else
+                    hostOptName = SO_REUSEPORT;
+#endif
+                    break;
+#endif
                 case __WASI_SO_RCVTIMEO:
                     hostOptName = SO_RCVTIMEO;
                     hostOptValType = TIMEVAL;
