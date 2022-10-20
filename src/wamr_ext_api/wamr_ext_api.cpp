@@ -181,32 +181,44 @@ int32_t wamr_ext_init() {
     return 0;
 }
 
-#define WASM_MAX_MODULE_FILE_SIZE (512 * 1024 * 1024)   // 512MB
-
 int32_t wamr_ext_module_load_by_file(wamr_ext_module_t* module, const char* module_name, const char* file_path) {
     int32_t err = WAMR_EXT_NS::WamrExtCheckNewModuleName(module_name);
     if (err != 0)
         return err;
-    auto* f = fopen(file_path, "rb");
-    if (!f)
+#ifndef _WIN32
+    int fd = open(file_path, O_CLOEXEC | O_RDONLY);
+    if (fd == -1)
         return errno;
+#else
+#error "mmap() file is not implemented for Win32"
+#endif
     int32_t ret = 0;
     do {
-        fseek(f, 0, SEEK_END);
-        uint64_t fileSize = ftell(f);
-        if (fileSize > WASM_MAX_MODULE_FILE_SIZE) {
-            ret = EFBIG;
+#ifndef _WIN32
+        struct stat s = {0};
+        fstat(fd, &s);
+        uint32_t fileSize = s.st_size;
+        if (fileSize <= 0) {
+            ret = EINVAL;
             break;
         }
-        std::shared_ptr<uint8_t> pFileBuf(new uint8_t[fileSize], std::default_delete<uint8_t[]>());
-        fseek(f, 0, SEEK_SET);
-        fread(pFileBuf.get(), 1, fileSize, f);
-        fclose(f);
-        f = nullptr;
+        void* addr = mmap(nullptr, fileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+        if (addr == MAP_FAILED) {
+            ret = errno;
+            break;
+        }
+        close(fd);
+        fd = -1;
+        std::shared_ptr<uint8_t> pFileBuf((uint8_t*)addr, [fileSize](uint8_t* p) {
+            munmap(p, fileSize);
+        });
+#endif
         ret = WAMR_EXT_NS::WamrExtModuleLoad(module, module_name, pFileBuf, fileSize);
     } while (false);
-    if (f)
-        fclose(f);
+#ifndef _WIN32
+    if (fd != -1)
+        close(fd);
+#endif
     return ret;
 }
 
