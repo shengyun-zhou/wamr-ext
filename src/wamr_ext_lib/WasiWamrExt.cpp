@@ -45,13 +45,8 @@ namespace WAMR_EXT_NS {
             uint64_t totalMemSize = 0;
             if (*bufLen < sizeof(totalMemSize))
                 return UVWASI_ERANGE;
-            if (pWasmModule->module_type == Wasm_Module_Bytecode) {
-                WASMMemoryInstance* memInst = ((WASMModuleInstance*)pWasmModule)->default_memory;
-                totalMemSize = uint64_t(memInst->num_bytes_per_page) * memInst->max_page_count;
-            } else if (pWasmModule->module_type == Wasm_Module_AoT) {
-                AOTMemoryInstance* memInst = ((AOTModuleInstance*)pWasmModule)->global_table_data.memory_instances;
-                totalMemSize = uint64_t(memInst->num_bytes_per_page) * memInst->max_page_count;
-            }
+            WASMMemoryInstance* memInst = wasm_get_default_memory((WASMModuleInstance*)pWasmModule);
+            totalMemSize = uint64_t(memInst->num_bytes_per_page) * memInst->max_page_count;
             *bufLen = sizeof(totalMemSize);
             memcpy(buf, &totalMemSize, *bufLen);
             return 0;
@@ -59,14 +54,8 @@ namespace WAMR_EXT_NS {
             uint64_t availMem = 0;
             if (*bufLen < sizeof(availMem))
                 return UVWASI_ERANGE;
-            void* pAppHeap = nullptr;
-            if (pWasmModule->module_type == Wasm_Module_Bytecode) {
-                WASMMemoryInstance* memInst = ((WASMModuleInstance*)pWasmModule)->default_memory;
-                pAppHeap = memInst->heap_handle;
-            } else if (pWasmModule->module_type == Wasm_Module_AoT) {
-                AOTMemoryInstance* memInst = ((AOTModuleInstance*)pWasmModule)->global_table_data.memory_instances;
-                pAppHeap = memInst->heap_handle.ptr;
-            }
+            WASMMemoryInstance* memInst = wasm_get_default_memory((WASMModuleInstance*)pWasmModule);
+            void* pAppHeap = memInst->heap_handle;
             if (pAppHeap) {
                 mem_alloc_info_t allocStatInfo = {0};
                 if (mem_allocator_get_alloc_info(pAppHeap, &allocStatInfo))
