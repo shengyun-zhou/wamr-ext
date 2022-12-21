@@ -143,7 +143,11 @@ namespace WAMR_EXT_NS {
                 wasm_exec_env_destroy(pExecEnv);
             }}));
             pThreadInfo->appStartArg.funcArg = appArg;
-            pThreadInfo->stackCtrl.stackSize = APP_THREAD_DEFAULT_STACK_SIZE;
+            {
+                uint32_t _offset = 0;
+                if (!wasm_exec_env_get_aux_stack(pExecEnv, &_offset, &pThreadInfo->stackCtrl.stackSize))
+                    pThreadInfo->stackCtrl.stackSize = APP_THREAD_DEFAULT_STACK_SIZE;
+            }
             pThreadInfo->stackCtrl.appStackAddr = 0;
             pThreadInfo->stackCtrl.bStackFromApp = pThreadInfo->stackCtrl.appStackAddr;
             if (!pThreadInfo->stackCtrl.bStackFromApp) {
