@@ -370,6 +370,15 @@ int32_t wamr_ext_instance_start(wamr_ext_instance_t* inst) {
         pInst->state = WamrExtInstance::STATE_ENDED;
         return -1;
     }
+    wasmFuncInst = wasm_runtime_lookup_function(pInst->wasmMainInstance, "__wasi_init_tp", "()");
+    assert(wasmFuncInst);
+    if (wasmFuncInst && !wasm_runtime_call_wasm_a(pInst->pMainExecEnv, wasmFuncInst, 0, nullptr, 0, nullptr)) {
+        snprintf(WAMR_EXT_NS::gLastErrorStr, sizeof(WAMR_EXT_NS::gLastErrorStr), "%s", wasm_runtime_get_exception(pInst->wasmMainInstance));
+        std::lock_guard<std::mutex> instAL(pInst->instanceLock);
+        pInst->state = WamrExtInstance::STATE_ENDED;
+        return -1;
+    }
+
     std::lock_guard<std::mutex> instAL(pInst->instanceLock);
     pInst->state = WamrExtInstance::STATE_STARTED;
     return 0;
@@ -428,7 +437,7 @@ WAMR_EXT_API int32_t wamr_ext_instance_destroy(wamr_ext_instance_t* inst) {
     if (pInst->wasmMainInstance) {
         // Close all FDs opened by app
         std::vector<uint32_t> appFDs;
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pInst->wasmMainInstance);
+        uvwasi_t *pUVWasi = &wasm_runtime_get_wasi_ctx(pInst->wasmMainInstance)->uvwasi;
         uvwasi_fd_table_lock(pUVWasi->fds);
         appFDs.reserve(pUVWasi->fds->size);
         for (uint32_t i = 0; i < pUVWasi->fds->size; i++) {

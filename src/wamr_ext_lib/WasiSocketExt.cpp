@@ -127,7 +127,7 @@ namespace WAMR_EXT_NS {
                                                                int32_t &outAppSockFD) {
         // FIXME: socket may not be closed correctly on Windows host
         uv_file uvFD = uv_open_osfhandle((uv_os_fd_t)hostSockFD);
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
+        uvwasi_t *pUVWasi = &wasm_runtime_get_wasi_ctx(pWasmModuleInst)->uvwasi;
         uvwasi_fd_wrap_t* pFDWrap = nullptr;
         std::string fakePath = "<socket_" + std::to_string(uvFD) + '>';
         uvwasi_errno_t err = uvwasi_fd_table_insert(pUVWasi, pUVWasi->fds, uvFD, fakePath.c_str(), fakePath.c_str(), wasiSockType,
@@ -856,7 +856,7 @@ namespace WAMR_EXT_NS {
             !wasm_runtime_validate_native_addr(pWasmModuleInst, pAppOutEvent, sizeof(*pAppOutEvent) * appSubCount)) {
             return UVWASI_EFAULT;
         }
-        uvwasi_t *pUVWasi = wasm_runtime_get_wasi_ctx(pWasmModuleInst);
+        uvwasi_t *pUVWasi = &wasm_runtime_get_wasi_ctx(pWasmModuleInst)->uvwasi;
         *pAppNEvents = 0;
         if (appSubCount == 0)
             return 0;
