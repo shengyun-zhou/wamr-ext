@@ -10,6 +10,8 @@
 #endif
 
 namespace WAMR_EXT_NS {
+    thread_local char Utility::g_currentThreadName[64] = {0};
+
     uint32_t Utility::GetProcessID() {
 #ifdef _WIN32
         return GetCurrentProcessId();
@@ -33,28 +35,49 @@ namespace WAMR_EXT_NS {
     }
 
     void Utility::SetCurrentThreadName(const char *name) {
-#if defined(__APPLE__)
+        snprintf(g_currentThreadName, sizeof(g_currentThreadName), "%s", name);
+#ifdef _WIN32
+#ifdef _MSC_VER
+#pragma pack(push,8)
+        typedef struct tagTHREADNAME_INFO {
+            DWORD dwType; // Must be 0x1000.
+            LPCSTR szName; // Pointer to name (in user addr space).
+            DWORD dwThreadID; // Thread ID (-1=caller thread).
+            DWORD dwFlags; // Reserved for future use, must be zero.
+        } THREADNAME_INFO;
+#pragma pack(pop)
+        THREADNAME_INFO info;
+        info.dwType = 0x1000;
+        info.szName = name;
+        info.dwThreadID = -1;
+        info.dwFlags = 0;
+#pragma warning(push)
+#pragma warning(disable: 6320 6322)
+        __try{
+            RaiseException(0x406D1388, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+        }
+#pragma warning(pop)
+#endif
+#elif defined(__APPLE__)
         pthread_setname_np(name);
-#elif defined(__CYGWIN__) || defined(__FreeBSD__) || defined(_WIN32)
+#elif defined(__CYGWIN__) || defined(__FreeBSD__)
         pthread_setname_np(pthread_self(), name);
 #elif defined(__linux__)
         prctl(PR_SET_NAME, name);
 #endif
     }
 
-    std::string Utility::GetCurrentThreadName() {
-        char tempThreadName[64] = {0};
+    const char* Utility::GetCurrentThreadName() {
+        if (g_currentThreadName[0] == '\0') {
 #ifdef __linux__
-        if (prctl(PR_GET_NAME, tempThreadName) == -1)
-            return "";
-#elif defined(_WIN32) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__FreeBSD__)
-        int err = pthread_getname_np(pthread_self(), tempThreadName, sizeof(tempThreadName));
-        if (err != 0)
-            return "";
-#else
-        return "";
+            prctl(PR_GET_NAME, g_currentThreadName);
+#elif defined(__APPLE__) || defined(__CYGWIN__) || defined(__FreeBSD__)
+            pthread_getname_np(pthread_self(), g_currentThreadName, sizeof(g_currentThreadName));
 #endif
-        return tempThreadName;
+        }
+        return g_currentThreadName;
     }
 
     uvwasi_errno_t Utility::GetHostFDByAppFD(wasm_module_inst_t pWasmModuleInst, int32_t appFD, uv_os_fd_t &outHostFD,

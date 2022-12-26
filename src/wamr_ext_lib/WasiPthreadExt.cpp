@@ -184,7 +184,6 @@ namespace WAMR_EXT_NS {
                 }
             }
             pThreadInfo->pHostThread = new std::thread([pCurThreadInfo = pThreadInfo.get(), wasmThreadEntryFuncInst, retTid]{
-                auto* pManager = WasiPthreadExt::GetInstPthreadManager(pCurThreadInfo->pExecEnv.get());
                 wasm_exec_env_set_thread_info(pCurThreadInfo->pExecEnv.get());
                 wasm_val_t argv[2];
                 argv[0].kind = WASM_I32; argv[0].of.i32 = retTid;
