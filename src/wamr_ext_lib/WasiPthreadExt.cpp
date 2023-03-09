@@ -8,7 +8,7 @@ namespace WAMR_EXT_NS {
         RegisterExtSyscall(wasi::__EXT_SYSCALL_PTHREAD_HOST_SETNAME, std::make_shared<ExtSyscall_S>((void*)PthreadSetName));
 
         static NativeSymbol wasiNativeSymbols[] = {
-            {"thread_spawn", (void*)WasiThreadSpawn, "(i)i", nullptr},
+            {"thread-spawn", (void*)WasiThreadSpawn, "(i)i", nullptr},
         };
         wasm_runtime_register_natives("wasi", wasiNativeSymbols, sizeof(wasiNativeSymbols) / sizeof(NativeSymbol));
     }
