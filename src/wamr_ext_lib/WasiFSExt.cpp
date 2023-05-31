@@ -5,7 +5,7 @@ extern "C" {
 }
 #ifndef _WIN32
 #include <fcntl.h>
-#ifdef __linux__
+#if defined(__ANDROID__) || defined(__GLIBC__)
 typedef struct flock64 host_flock_t;
 #define HOST_F_SETLK  F_SETLK64
 #define HOST_F_SETLKW F_SETLKW64
